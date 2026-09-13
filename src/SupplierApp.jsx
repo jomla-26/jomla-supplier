@@ -42,7 +42,7 @@ export default function JomlaSupplierApp() {
   const [selectedPartId, setSelectedPartId] = useState(null);
 
   if (loading) return <Shell><Centered><Loader2 className="spin" size={26} /><p>جارٍ التحميل…</p></Centered></Shell>;
-  if (!actor) return <Shell><LoginView onRequestOtp={requestOtp} onVerify={verifyOtp} /></Shell>;
+  if (!actor) return <Shell><AuthGate onRequestOtp={requestOtp} onVerify={verifyOtp} /></Shell>;
 
   return (
     <Shell>
@@ -88,7 +88,135 @@ function BrandMark({ size = 22 }) {
 
 /* --------------------------- الدخول --------------------------- */
 
-function LoginView({ onRequestOtp, onVerify }) {
+function AuthGate({ onRequestOtp, onVerify }) {
+  const [mode, setMode] = useState("login"); // login | register | pending
+
+  if (mode === "register") {
+    return <RegisterView onDone={() => setMode("pending")} onCancel={() => setMode("login")} />;
+  }
+  if (mode === "pending") {
+    return <PendingApprovalView onBack={() => setMode("login")} />;
+  }
+  return <LoginView onRequestOtp={onRequestOtp} onVerify={onVerify} onNewAccount={() => setMode("register")} />;
+}
+
+function PendingApprovalView({ onBack }) {
+  return (
+    <div className="screen login-screen">
+      <div className="brand-row"><BrandMark size={56} /></div>
+      <p className="login-sub">بوابة الموردين — منصة جملة</p>
+      <div className="login-card" style={{ textAlign: "center" }}>
+        <p style={{ fontWeight: 700, marginBottom: 8 }}>طلبك قيد المراجعة</p>
+        <p className="hint" style={{ marginBottom: 20 }}>
+          تم استلام طلب تسجيل حسابك بنجاح. سيتم التواصل معك بعد اعتماد الحساب من إدارة جملة.
+        </p>
+        <button className="btn-ghost" onClick={onBack}>رجوع لتسجيل الدخول</button>
+      </div>
+    </div>
+  );
+}
+
+function RegisterView({ onDone, onCancel }) {
+  const [form, setForm] = useState({ name: "", phone: "", address: "" });
+  const [location, setLocation] = useState(null);
+  const [businessTypes, setBusinessTypes] = useState([""]);
+  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const submit = useAction(() => api.registerAccount("supplier", {
+    businessName: form.name.trim(),
+    phone: form.phone.trim(),
+    address: form.address.trim() || undefined,
+    latitude: location?.lat,
+    longitude: location?.lng,
+    businessTypes: businessTypes.map((t) => t.trim()).filter(Boolean),
+  }));
+
+  const valid = form.name.trim() && form.phone.replace(/\D/g, "").length >= 9;
+
+  return (
+    <div className="screen login-screen">
+      <div className="brand-row"><BrandMark size={56} /></div>
+      <p className="login-sub">إنشاء حساب مورد جديد</p>
+      <div className="login-card">
+        <label className="field-label">اسم النشاط أو المتجر</label>
+        <input className="field-input" value={form.name} onChange={set("name")} />
+
+        <label className="field-label">رقم الهاتف</label>
+        <input className="field-input" value={form.phone} onChange={set("phone")}
+          dir="ltr" style={{ textAlign: "right" }} inputMode="numeric" placeholder="09XXXXXXXX" />
+
+        <label className="field-label">العنوان</label>
+        <input className="field-input" value={form.address} onChange={set("address")} />
+
+        <label className="field-label">نوع النشاط</label>
+        {businessTypes.map((t, i) => (
+          <div key={i} style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+            <input className="field-input" style={{ marginBottom: 0, flex: 1 }} value={t}
+              placeholder="مثال: مواد بناء"
+              onChange={(e) => setBusinessTypes((arr) => arr.map((v, idx) => idx === i ? e.target.value : v))} />
+            {businessTypes.length > 1 && (
+              <button type="button" className="btn-ghost" style={{ width: "auto", padding: "0 14px", marginBottom: 0 }}
+                onClick={() => setBusinessTypes((arr) => arr.filter((_, idx) => idx !== i))}>−</button>
+            )}
+            {i === businessTypes.length - 1 && (
+              <button type="button" className="btn-ghost" style={{ width: "auto", padding: "0 14px", marginBottom: 0 }}
+                onClick={() => setBusinessTypes((arr) => [...arr, ""])}>+</button>
+            )}
+          </div>
+        ))}
+
+        <label className="field-label">تحديد الموقع على الخريطة</label>
+        <RegisterLocationPicker value={location} onChange={setLocation} />
+
+        {submit.error && <p className="field-error">{submit.error}</p>}
+
+        <button className="btn-primary" disabled={!valid || submit.pending}
+          onClick={() => submit.run().then(onDone).catch(() => {})}>
+          {submit.pending ? "جارٍ الإرسال…" : "إرسال طلب التسجيل"}
+        </button>
+        <button className="btn-ghost" onClick={onCancel}>إلغاء</button>
+      </div>
+    </div>
+  );
+}
+
+function RegisterLocationPicker({ value, onChange }) {
+  const TRIPOLI_CENTER = [32.8872, 13.1913];
+  function ClickHandler() {
+    useMapEvents({
+      click(e) {
+        onChange({ lat: Number(e.latlng.lat.toFixed(5)), lng: Number(e.latlng.lng.toFixed(5)) });
+      },
+    });
+    return null;
+  }
+  return (
+    <div className="map-picker-wrap">
+      <div className="map-picker">
+        <MapContainer
+          center={value ? [value.lat, value.lng] : TRIPOLI_CENTER}
+          zoom={value ? 15 : 12}
+          style={{ height: "220px", width: "100%" }}
+        >
+          <TileLayer attribution='&copy; OpenStreetMap contributors'
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+          <ClickHandler />
+          {value && <Marker position={[value.lat, value.lng]} icon={markerIcon} />}
+        </MapContainer>
+        {!value && <div className="map-hint">اضغط على الخريطة لتحديد الموقع</div>}
+      </div>
+      {value && (
+        <div className="map-coords">
+          <span>الإحداثيات: {value.lat}, {value.lng}</span>
+          <button className="link-btn" onClick={() => onChange(null)}>مسح الموقع</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+function LoginView({ onRequestOtp, onVerify, onNewAccount }) {
   const [step, setStep] = useState("phone");
   const [phone, setPhone] = useState("");
   const [digits, setDigits] = useState(["", "", "", ""]);
@@ -131,6 +259,7 @@ function LoginView({ onRequestOtp, onVerify }) {
           <button className="btn-primary" onClick={handleSend} disabled={send.pending}>
             {send.pending ? "جارٍ الإرسال…" : "إرسال رمز التحقق"}
           </button>
+         <button className="link-btn" onClick={onNewAccount}>مورد جديد؟ أنشئ حسابك من هنا</button>
         </div>
       ) : (
         <div className="login-card">
