@@ -98,7 +98,8 @@ export const api = {
   },
 
   me: () => request("/auth/me"),
-  logout: () => session.clear(),
+    logout: () => session.clear(),
+  registerAccount: (kind, body) => request(`/accounts/${kind}/register`, { method: "POST", body }),
 
   /* الكتالوج */
   sections: () => request("/catalog/sections"),
