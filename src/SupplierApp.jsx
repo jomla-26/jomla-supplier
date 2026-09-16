@@ -585,7 +585,8 @@ function ProductsView() {
   const [query, setQuery] = useState("");
   const [showAdd, setShowAdd] = useState(false);
   const { data, loading, error, reload, setData } = useFetch((signal) => api.products(undefined, signal), []);
-  const { data: sections } = useFetch((signal) => api.sections(signal), []);
+    const { data: meData } = useFetch(() => api.me(), []);
+  const sections = meData?.sections ?? [];
 
   const q = query.trim();
   const visible = (data ?? []).filter((p) => !q || p.name.includes(q) || p.unit.includes(q));
