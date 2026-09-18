@@ -158,6 +158,7 @@ vouchers: (params) => request("/finance/vouchers", { params }),
   expenses: (params) => request("/finance/expenses", { params }),
   expensesSummary: () => request("/finance/expenses/summary"),
   createExpense: (body) => request("/finance/expenses", { method: "POST", body }),
+  profitReport: (params) => request("/finance/profit-report", { params }),
 
   /* الموظفون */
   employees: () => request("/employees"),
