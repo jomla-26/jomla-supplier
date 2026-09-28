@@ -102,7 +102,7 @@ export const api = {
   registerAccount: (kind, body) => request(`/accounts/${kind}/register`, { method: "POST", body }),
 
   /* الكتالوج */
-  sections: () => request("/catalog/sections"),
+  sections: (params) => request("/catalog/sections", { params }),
   createSection: (body) => request("/catalog/sections", { method: "POST", body }),
   updateSection: (id, body) => request(`/catalog/sections/${id}`, { method: "PATCH", body }),
   suppliers: () => request("/catalog/suppliers"),
