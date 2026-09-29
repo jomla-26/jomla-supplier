@@ -28,8 +28,10 @@ export function useSession(accountType) {
         setActor(data.actor);
         setProfile(data);
       })
-      .catch(() => {
-        if (!cancelled) { session.clear(); setActor(null); }
+      .catch((err) => {
+        // نمسح الجلسة فقط لو التوكن فعلًا مرفوض — أخطاء الشبكة أو السيرفر ما تخرّجش المستخدم
+        if (cancelled) return;
+        if (err?.status === 401 || err?.status === 403) { session.clear(); setActor(null); }
       })
       .finally(() => !cancelled && setLoading(false));
 
