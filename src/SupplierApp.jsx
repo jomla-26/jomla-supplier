@@ -625,7 +625,7 @@ display:flex;justify-content:space-between}
   <button onclick="window.close()">✕ إغلاق</button>
 </div>
 <div class="sheet">
-<header><div><p class="brand">${COMPANY.name}</p>
+<header><div><img src="${LOGO_FULL}" alt="${COMPANY.name}" style="height:56px;width:auto;display:block;margin-bottom:12px"/>
 <p style="margin:0;font-size:13.5px;font-weight:500;color:#6b7280;line-height:1.9">${COMPANY.address}<br/>${COMPANY.phone}</p></div>
 <div><h2 class="doc-title">فاتورة مورد</h2><div class="doc-meta">
 العميل: ${esc(part.customer_name)}<br/>
