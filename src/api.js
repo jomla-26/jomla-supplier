@@ -141,8 +141,11 @@ export const api = {
   startDelivery: (id) => request(`/orders/${id}/start-delivery`, { method: "POST" }),
   deliverOrder: (id, collected) =>
     request(`/orders/${id}/deliver`, { method: "POST", body: { collected } }),
-  confirmPickup: (osId, paymentReceived) =>
-    request(`/orders/supplier-parts/${osId}/pickup-confirm`, { method: "POST", body: { paymentReceived } }),
+  confirmPickup: (osId, paymentReceived, amountReceived) =>
+    request(`/orders/supplier-parts/${osId}/pickup-confirm`, {
+      method: "POST",
+      body: amountReceived === undefined ? { paymentReceived } : { paymentReceived, amountReceived },
+    }),
   markSupplierPartReady: (osId) =>
     request(`/orders/supplier-parts/${osId}/mark-ready`, { method: "POST" }),
   setOrderSupplierCommissionRate: (osId, commissionRate) =>
