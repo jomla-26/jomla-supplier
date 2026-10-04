@@ -43,6 +43,55 @@ export class ApiError extends Error {
 let onUnauthorized = () => {};
 export const setUnauthorizedHandler = (fn) => { onUnauthorized = fn; };
 
+/* ---------------- إيقاف الحساب / عدم تفعيله (403) ----------------
+   الخادم يرد 403 برمز ACCOUNT_BLOCKED لما يكون الحساب موقوف أو بانتظار الاعتماد أو الموظف معطّل.
+   هذا مختلف عن 403 "ما عندك صلاحية" (ما نطلّع المستخدم منها). */
+const BLOCKED_MSG_RE = /(تم إيقاف هذا الحساب|حسابك غير مفعّل|حسابك لم يُعتمد|هذا الحساب غير متاح)/;
+
+function showLogoutNotice(message) {
+  try {
+    if (typeof document === "undefined") return;
+    document.getElementById("jomla-logout-notice")?.remove();
+    const el = document.createElement("div");
+    el.id = "jomla-logout-notice";
+    el.setAttribute("role", "alert");
+    el.dir = "rtl";
+    el.textContent = message;
+    el.style.cssText = "position:fixed;top:12px;left:12px;right:12px;z-index:99999;max-width:520px;margin:0 auto;"
+      + "padding:14px 16px;border-radius:12px;background:#7a1f1f;color:#fff;font:600 15px/1.6 Tajawal,Cairo,sans-serif;"
+      + "text-align:center;box-shadow:0 6px 24px rgba(0,0,0,.25);cursor:pointer";
+    el.onclick = () => el.remove();
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 12000);
+  } catch { /* تجاهل */ }
+}
+
+/** true لو الرد 403 بسبب إيقاف/عدم تفعيل الحساب (مو نقص صلاحية، ومو أخطاء شاشة الدخول) */
+export function isAccountBlocked(status, payload, path = "") {
+  if (status !== 403) return false;
+  if (payload?.code === "ACCOUNT_BLOCKED") return true;
+  return !String(path).startsWith("/auth/otp") && BLOCKED_MSG_RE.test(payload?.error || "");
+}
+
+/**
+ * للمساعدات التي تستدعي fetch مباشرة (خارج request): تعالج 401 وإيقاف الحساب بنفس منطق request().
+ * تمسح الجلسة، ترجّع التطبيق لشاشة الدخول، وتعرض الرسالة الواضحة، ثم ترمي ApiError.
+ */
+export function guardAuthFailure(status, payload, path = "") {
+  if (status === 401) {
+    session.clear();
+    onUnauthorized();
+    throw new ApiError(401, "انتهت الجلسة، يرجى تسجيل الدخول من جديد");
+  }
+  if (isAccountBlocked(status, payload, path)) {
+    const msg = payload?.error || "تم إيقاف هذا الحساب، يرجى التواصل مع الدعم الفني";
+    session.clear();
+    onUnauthorized();
+    showLogoutNotice(msg);
+    throw new ApiError(403, msg);
+  }
+}
+
 async function request(path, { method = "GET", body, params, signal } = {}) {
   const url = new URL(`${BASE_URL}${path}`, window.location.origin);
   if (params) {
@@ -76,6 +125,7 @@ async function request(path, { method = "GET", body, params, signal } = {}) {
   if (res.status === 204) return null;
 
   const payload = await res.json().catch(() => ({}));
+  guardAuthFailure(res.status, payload, path);
   if (!res.ok) {
     throw new ApiError(res.status, payload.error || "حدث خطأ غير متوقع", payload.details);
   }
@@ -299,6 +349,7 @@ orderMessages: (orderId, orderSupplierId) => request(`/engagement/orders/${order
     if (session.token) headers.Authorization = `Bearer ${session.token}`;
     const res = await fetch(`${BASE_URL}/uploads/image`, { method: "POST", headers, body: form });
     const payload = await res.json().catch(() => ({}));
+    guardAuthFailure(res.status, payload, "/uploads");
     if (!res.ok) throw new ApiError(res.status, payload.error || "تعذّر رفع الصورة");
     const origin = new URL(BASE_URL, window.location.origin).origin;
     return { ...payload, url: new URL(payload.url, origin).href };
@@ -314,6 +365,7 @@ orderMessages: (orderId, orderSupplierId) => request(`/engagement/orders/${order
     if (session.token) headers.Authorization = `Bearer ${session.token}`;
     const res = await fetch(`${BASE_URL}/uploads/product-images/bulk`, { method: "POST", headers, body: form });
     const payload = await res.json().catch(() => ({}));
+    guardAuthFailure(res.status, payload, "/uploads");
     if (!res.ok) throw new ApiError(res.status, payload.error || "تعذّر رفع الصور");
     return payload;
   },

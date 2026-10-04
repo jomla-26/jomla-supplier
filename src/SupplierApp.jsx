@@ -759,10 +759,13 @@ function PartDetailView({ partId, onDone }) {
   }
 
   function currentFor(item) {
-    return draft[item.id] ?? {
-      availability: item.availability === "pending" ? "full" : item.availability,
-      qty: item.qty_confirmed ?? item.qty_requested,
-    };
+    // البنود اللي ما انلمست بعد (التوفر NULL في القاعدة أو "pending") تظهر "متوفر كامل" بالكمية المطلوبة،
+    // وهي نفس القيمة اللي تنرسل — ما نرسل null أبدًا
+    const stored = ["full", "partial", "out"].includes(item.availability) ? item.availability : "full";
+    const storedQty = stored === "full" ? item.qty_requested
+      : stored === "out" ? 0
+      : (item.qty_confirmed ?? item.qty_requested);
+    return draft[item.id] ?? { availability: stored, qty: storedQty };
   }
 
   const confirmedTotal = items.reduce((s, i) => {
@@ -774,11 +777,12 @@ function PartDetailView({ partId, onDone }) {
   async function submitAvailability() {
     const payload = items.map((i) => {
       const c = currentFor(i);
+      const availability = ["full", "partial", "out"].includes(c.availability) ? c.availability : "full";
       return {
         orderItemId: i.id,
-        availability: c.availability,
-        qtyConfirmed: c.availability === "full" ? i.qty_requested
-                    : c.availability === "out" ? 0 : Number(c.qty),
+        availability,
+        qtyConfirmed: availability === "full" ? Number(i.qty_requested)
+                    : availability === "out" ? 0 : Number(c.qty) || 0,
       };
     });
     await confirm.run(payload).then(onDone).catch(() => {});
@@ -1225,32 +1229,43 @@ function StockVouchersScreen({ sections, products, onClose, onChanged }) {
 
 function StockVoucherForm({ voucherType, products, onClose, onSaved }) {
   const [query, setQuery] = useState("");
-  const [cart, setCart] = useState([]); // [{ productId, name, unit, stockQty, qty }]
+  const [cart, setCart] = useState([]); // [{ key, productId, variantId, name, unit, stockQty, qty }]
   const [reason, setReason] = useState("");
   const isIn = voucherType === "addition";
 
   const submit = useAction(() => api.createStockVoucher({
     voucherType,
     reason: reason.trim(),
-    items: cart.map((c) => ({ productId: c.productId, qty: Number(c.qty) })),
+    // الصنف ذو الأنواع يُحدَّد فيه النوع (variantId)، والصنف العادي بـ productId
+    items: cart.map((c) => c.variantId
+      ? { variantId: c.variantId, qty: Number(c.qty) }
+      : { productId: c.productId, qty: Number(c.qty) }),
   }));
+
+  // كل نوع يظهر كسطر مستقل (الكمية على مستوى النوع)، والصنف العادي كسطر واحد
+  const entries = products.flatMap((p) => (p.variants?.length
+    ? p.variants.map((v) => ({
+        key: v.id, productId: p.id, variantId: v.id, name: `${p.name} — ${v.label}`,
+        unit: p.unit, sku: v.sku, stockQty: v.stockQty,
+      }))
+    : [{ key: p.id, productId: p.id, variantId: null, name: p.name, unit: p.unit, sku: p.supplier_sku, stockQty: p.stock_qty }]));
 
   const q = query.trim();
   const results = q
-    ? products.filter((p) => !cart.some((c) => c.productId === p.id)
-        && (p.name.includes(q) || (p.supplier_sku && p.supplier_sku.includes(q))))
+    ? entries.filter((e) => !cart.some((c) => c.key === e.key)
+        && (e.name.includes(q) || (e.sku && String(e.sku).includes(q))))
       .slice(0, 8)
     : [];
 
-  function addToCart(p) {
-    setCart((c) => [...c, { productId: p.id, name: p.name, unit: p.unit, stockQty: p.stock_qty, qty: 1 }]);
+  function addToCart(e) {
+    setCart((c) => [...c, { ...e, qty: 1 }]);
     setQuery("");
   }
-  function setQty(productId, qty) {
-    setCart((c) => c.map((x) => x.productId === productId ? { ...x, qty } : x));
+  function setQty(key, qty) {
+    setCart((c) => c.map((x) => x.key === key ? { ...x, qty } : x));
   }
-  function removeFromCart(productId) {
-    setCart((c) => c.filter((x) => x.productId !== productId));
+  function removeFromCart(key) {
+    setCart((c) => c.filter((x) => x.key !== key));
   }
 
   const valid = cart.length > 0 && cart.every((c) => Number(c.qty) > 0) && reason.trim().length >= 2;
@@ -1270,10 +1285,10 @@ function StockVoucherForm({ voucherType, products, onClose, onSaved }) {
       {results.length > 0 && (
         <div className="ledger-list" style={{ marginBottom: 14 }}>
           {results.map((p) => (
-            <div className="ledger-row" key={p.id} style={{ cursor: "pointer" }} onClick={() => addToCart(p)}>
+            <div className="ledger-row" key={p.key} style={{ cursor: "pointer" }} onClick={() => addToCart(p)}>
               <span className="cell-id">{p.name}</span>
-              <span className="cell-muted">{p.unit} {p.supplier_sku ? `· #${p.supplier_sku}` : ""}</span>
-              <span className="cell-muted">الكمية الحالية: {p.stock_qty}</span>
+              <span className="cell-muted">{p.unit} {p.sku ? `· #${p.sku}` : ""}</span>
+              <span className="cell-muted">الكمية الحالية: {p.stockQty}</span>
               <Plus size={16} />
             </div>
           ))}
@@ -1287,16 +1302,16 @@ function StockVoucherForm({ voucherType, products, onClose, onSaved }) {
             <span className="invoice-head-count">{cart.length} صنف</span>
           </div>
           {cart.map((c) => (
-            <div className="supplier-item-row" key={c.productId}>
+            <div className="supplier-item-row" key={c.key}>
               <div className="supplier-item-top">
                 <span className="invoice-line-name">{c.name} <i>({c.unit})</i></span>
-                <button className="link-btn" onClick={() => removeFromCart(c.productId)}>حذف</button>
+                <button className="link-btn" onClick={() => removeFromCart(c.key)}>حذف</button>
               </div>
               <span className="supplier-item-qty">الكمية الحالية بالمخزون: {c.stockQty}</span>
               <div className="confirmed-qty-row">
                 <span>{isIn ? "الكمية المضافة:" : "الكمية المخصومة:"}</span>
                 <input type="number" min="1" className="qty-input" value={c.qty}
-                  onChange={(e) => setQty(c.productId, Math.max(1, Number(e.target.value) || 1))} />
+                  onChange={(e) => setQty(c.key, Math.max(1, Number(e.target.value) || 1))} />
               </div>
             </div>
           ))}
@@ -1353,9 +1368,9 @@ function StockVoucherDetail({ voucherId, onClose }) {
             <tbody>
               {data.lines.map((l) => (
                 <tr key={l.id}>
-                  <td className="cell-id">{l.product_name}</td>
+                  <td className="cell-id">{l.product_name}{l.variant_label ? ` — ${l.variant_label}` : ""}</td>
                   <td className="cell-muted">{l.unit}</td>
-                  <td className="cell-muted">{l.supplier_sku || "—"}</td>
+                  <td className="cell-muted">{l.variant_sku || l.supplier_sku || "—"}</td>
                   <td className={Number(l.change_qty) >= 0 ? "cell-amount" : "cell-amount cell-debt"}>
                     {Number(l.change_qty) >= 0 ? "+" : ""}{l.change_qty}
                   </td>
@@ -1375,7 +1390,7 @@ function StockVoucherDetail({ voucherId, onClose }) {
 
 function buildStockVoucherHTML(data) {
   const { voucher, lines } = data;
-  const rows = lines.map((l, n) => `<tr><td>${n + 1}</td><td>${l.product_name}${l.supplier_sku ? ` <span class="sku">#${l.supplier_sku}</span>` : ""}</td>
+  const rows = lines.map((l, n) => `<tr><td>${n + 1}</td><td>${l.product_name}${l.variant_label ? ` — ${l.variant_label}` : ""}${(l.variant_sku || l.supplier_sku) ? ` <span class="sku">#${l.variant_sku || l.supplier_sku}</span>` : ""}</td>
     <td>${l.unit}</td><td>${Number(l.change_qty) >= 0 ? "+" : ""}${l.change_qty}</td></tr>`).join("");
   const title = voucher.voucher_type === "addition" ? "فاتورة إضافة مخزون" : "فاتورة خصم مخزون";
 
@@ -1594,6 +1609,9 @@ function VariantRow({ variant: v, onDone }) {
           onClick={() => { if (window.confirm(`حذف النوع "${v.label}"؟`)) remove.run().then(onDone).catch(() => {}); }}>
           حذف
         </button>
+        {(save.error || toggle.error || remove.error) && (
+          <span className="field-error" style={{ flexBasis: "100%" }}>{save.error || toggle.error || remove.error}</span>
+        )}
       </td>
     </tr>
   );
@@ -2181,17 +2199,32 @@ function ImportProductsView({ sections, onClose, onImported }) {
         try {
           const wb = XLSX.read(e.target.result, { type: "array" });
           const sheet = wb.Sheets["الأصناف"] || wb.Sheets[wb.SheetNames[0]];
-          const json = XLSX.utils.sheet_to_json(sheet, { defval: "" });
-          const cleaned = json
+          // نقرأ الخلايا كنص كما تظهر في إكسل (raw:false) عشان الأكواد مثل 00123 تحافظ على أصفارها،
+          // وقراءة ثانية بقيم خام للسعر والكمية عشان ما يتقرّبوا بتنسيق الخلية
+          const textRows = XLSX.utils.sheet_to_json(sheet, { defval: "", raw: false });
+          const rawByRow = new Map(
+            XLSX.utils.sheet_to_json(sheet, { defval: "", raw: true }).map((r) => [r.__rowNum__, r])
+          );
+          const SKU_KEYS = ["رقم الصنف عندك (إجباري)", "رقم الصنف عندك (اختياري)"];
+          const num = (raw, shown) => {
+            const v = typeof raw === "number" ? raw : String(shown ?? raw ?? "").trim();
+            return v === "" ? null : v;   // فاضي = بدون تغيير (يُرسل null، مو صفر)
+          };
+          const cleaned = textRows
             .filter((r) => String(r["اسم الصنف"] || "").trim())
-            .map((r) => ({
-              sectionName: String(r["القسم"] || "").trim(),
-              name: String(r["اسم الصنف"] || "").trim(),
-              unit: String(r["وحدة البيع"] || "").trim(),
-              basePrice: Number(r["السعر (د.ل)"] || 0),
-              stockQty: Number(r["الكمية المتوفرة"] || 0),
-              supplierSku: String(r["رقم الصنف عندك (إجباري)"] || r["رقم الصنف عندك (اختياري)"] || "").trim(),
-            }));
+            .map((r) => {
+              const raw = rawByRow.get(r.__rowNum__) || {};
+              const skuKey = SKU_KEYS.find((k) => String(r[k] ?? "").trim()) || SKU_KEYS[0];
+              return {
+                rowNumber: (r.__rowNum__ ?? 0) + 1,   // رقم الصف في إكسل (للإبلاغ عن الأخطاء)
+                sectionName: String(r["القسم"] || "").trim(),
+                name: String(r["اسم الصنف"] || "").trim(),
+                unit: String(r["وحدة البيع"] || "").trim(),
+                basePrice: num(raw["السعر (د.ل)"], r["السعر (د.ل)"]),
+                stockQty: num(raw["الكمية المتوفرة"], r["الكمية المتوفرة"]),
+                supplierSku: String(r[skuKey] ?? "").trim(),
+              };
+            });
           resolve(cleaned);
         } catch (err) { reject("تعذّر قراءة الملف — تأكد من استخدام النموذج الصحيح"); }
       };
@@ -2224,6 +2257,7 @@ function ImportProductsView({ sections, onClose, onImported }) {
       <div className="login-card" style={{ marginTop: 16 }}>
         <p className="hint" style={{ marginBottom: 12 }}>
           تم تحديث الكمية والسعر لـ {result.updatedCount} صنف/نوع موجود بالفعل تلقائيًا.
+          {result.unchangedCount > 0 && ` (${result.unchangedCount} صنف/نوع بدون أي تغيير.)`}
           {result.skippedCount > 0 && ` تم تجاهل ${result.skippedCount} صف (بدون رقم صنف).`}
         </p>
 
@@ -2258,7 +2292,7 @@ function ImportProductsView({ sections, onClose, onImported }) {
               </div>
             ))}
 
-            {confirmNew.error && <p className="field-error">{confirmNew.error}</p>}
+            {confirmNew.error && <p className="field-error" style={{ whiteSpace: "pre-line" }}>{confirmNew.error}</p>}
             <button className="btn-primary" style={{ marginTop: 14 }}
               disabled={confirmNew.pending || !confirmDrafts.some((r) => r.sectionId)}
               onClick={() => confirmNew.run().then(onImported).catch(() => {})}>
@@ -2289,7 +2323,7 @@ function ImportProductsView({ sections, onClose, onImported }) {
           <p className="hint">تم العثور على {rows.length} صنف في «{fileName}»</p>
           <div className="note-block" style={{ marginTop: 8 }}>
             <span className="note-label">تذكير</span>
-            <p>رقم الصنف (أو كود النوع) إجباري لكل الصفوف — يُستخدم للمطابقة مع أصنافك الحالية. الكمية والسعر في الملف يصيرون هم الكمية والسعر الجديدين في المنظومة (مو يتضافوا على القديم).</p>
+            <p>رقم الصنف (أو كود النوع) إجباري لكل الصفوف — يُستخدم للمطابقة مع أصنافك الحالية. الكمية والسعر في الملف يصيرون هم الكمية والسعر الجديدين في المنظومة (مو يتضافوا على القديم). لو خليت خانة الكمية أو السعر فاضية يبقى القديم كما هو. أي قيمة سالبة أو غير رقمية توقف الاستيراد كله مع قائمة بالصفوف الغلط.</p>
           </div>
           {noSkuRows.length > 0 && (
             <div className="note-block" style={{ marginTop: 8 }}>
@@ -2297,7 +2331,7 @@ function ImportProductsView({ sections, onClose, onImported }) {
               <p>{noSkuRows.length} صف بدون رقم صنف وسيُتجاهل تمامًا: {noSkuRows.map((r) => r.name).join("، ")}</p>
             </div>
           )}
-          {submit.error && <p className="field-error">{submit.error}</p>}
+          {submit.error && <p className="field-error" style={{ whiteSpace: "pre-line" }}>{submit.error}</p>}
           <button className="btn-primary" disabled={submit.pending || !withSkuRows.length}
             onClick={() => submit.run().then(handleFirstResult).catch(() => {})}>
             {submit.pending ? "جارٍ المعالجة…" : `متابعة الاستيراد (${withSkuRows.length} صف)`}
