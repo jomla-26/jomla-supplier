@@ -1017,7 +1017,7 @@ function ProductsView() {
     setExporting(true);
     import("xlsx").then((XLSX) => {
       // نفس ترتيب أعمدة نموذج الاستيراد بالضبط، عشان الملف يصلح يترفع من جديد بعد التعديل
-      // الصنف اللي له خيارات يتصدّر سطر لكل خيار بكوده الخاص (الكود العام للصنف ما يُستخدم معاه)
+      // الصنف اللي له أنواع يتصدّر سطر لكل نوع بكوده الخاص (الكود العام للصنف ما يُستخدم معاه)
       const rows = (data ?? []).flatMap((p) => (p.variants?.length
         ? p.variants.map((v) => ({
             "القسم": p.section_name,
@@ -1025,7 +1025,7 @@ function ProductsView() {
             "وحدة البيع": p.unit,
             "السعر (د.ل)": Number(v.price),
             "الكمية المتوفرة": Number(v.stockQty),
-            "رقم الصنف عندك (اختياري)": v.sku || "",
+            "رقم الصنف عندك (إجباري)": v.sku || "",
           }))
         : [{
             "القسم": p.section_name,
@@ -1033,7 +1033,7 @@ function ProductsView() {
             "وحدة البيع": p.unit,
             "السعر (د.ل)": Number(p.base_price),
             "الكمية المتوفرة": Number(p.stock_qty),
-            "رقم الصنف عندك (اختياري)": p.supplier_sku || "",
+            "رقم الصنف عندك (إجباري)": p.supplier_sku || "",
           }]));
       const ws = XLSX.utils.json_to_sheet(rows);
       ws["!cols"] = [{ wch: 18 }, { wch: 30 }, { wch: 16 }, { wch: 14 }, { wch: 16 }, { wch: 26 }];
@@ -1504,7 +1504,7 @@ function ProductRow({ product, onSaved }) {
         <label className="mini-field">
           <span>رقم الصنف عندك</span>
           <input type="text" className="qty-input" style={{ width: 90 }}
-            placeholder="اختياري" value={sku} onChange={(e) => setSku(e.target.value)} />
+            placeholder="إجباري" value={sku} onChange={(e) => setSku(e.target.value)} />
         </label>
         {dirty && (
           <button className="save-inline" disabled={save.pending}
@@ -1519,7 +1519,7 @@ function ProductRow({ product, onSaved }) {
         <span className="stock-current">الكمية الحالية: <b>{product.stock_qty}</b></span>
         <button className="link-btn" onClick={() => setShowHistory(true)}>سجل الحركة</button>
         <button className="link-btn" onClick={() => setShowVariants((v) => !v)}>
-          {showVariants ? "إخفاء الخيارات" : "خيارات الصنف (ألوان/مقاسات/عبوات)"}
+          {showVariants ? "إخفاء الأنواع" : "أنواع الصنف (ألوان/مقاسات/عبوات)"}
         </button>
       </div>
 
@@ -1539,13 +1539,13 @@ function VariantsManager({ product }) {
   return (
     <div className="detail-card voucher-form" style={{ marginTop: 8 }}>
       <p className="hint">
-        كل خيار له سعره وكمية مخزونه الخاصين — مثلاً "أحمر - وسط" بسعر وكمية مختلفة عن "أزرق - كبير".
-        لو أضفت خيارات هنا، العميل يختار من بينها بدل الصنف العادي.
+        كل نوع له سعره وكمية مخزونه الخاصين — مثلاً "أحمر - وسط" بسعر وكمية مختلفة عن "أزرق - كبير".
+        لو أضفت أنواع هنا، العميل يختار من بينها بدل الصنف العادي.
       </p>
       {loading ? <Spinner /> : error ? <ErrorState message={error} onRetry={reload} /> : (
-        !data?.length ? <p className="cell-muted">لا توجد خيارات بعد</p> : (
+        !data?.length ? <p className="cell-muted">لا توجد أنواع بعد</p> : (
           <table className="data-table" style={{ marginTop: 0 }}>
-            <thead><tr><th>الخيار</th><th>السعر</th><th>الكمية</th><th>الحالة</th><th></th></tr></thead>
+            <thead><tr><th>النوع</th><th>السعر</th><th>الكمية</th><th>الحالة</th><th></th></tr></thead>
             <tbody>
               {data.map((v) => <VariantRow key={v.id} variant={v} onDone={reload} />)}
             </tbody>
@@ -1557,7 +1557,7 @@ function VariantsManager({ product }) {
           onCreated={() => { reload(); setShowAdd(false); }} />
       ) : (
         <button className="chip chip-add" style={{ marginTop: 8 }} onClick={() => setShowAdd(true)}>
-          <Plus size={14} style={{ verticalAlign: "-2px", marginLeft: 4 }} /> إضافة خيار جديد
+          <Plus size={14} style={{ verticalAlign: "-2px", marginLeft: 4 }} /> إضافة نوع جديد
         </button>
       )}
     </div>
@@ -1591,7 +1591,7 @@ function VariantRow({ variant: v, onDone }) {
           {v.is_active ? "إيقاف" : "تفعيل"}
         </button>
         <button className="invoice-action-btn" disabled={remove.pending}
-          onClick={() => { if (window.confirm(`حذف الخيار "${v.label}"؟`)) remove.run().then(onDone).catch(() => {}); }}>
+          onClick={() => { if (window.confirm(`حذف النوع "${v.label}"؟`)) remove.run().then(onDone).catch(() => {}); }}>
           حذف
         </button>
       </td>
@@ -1611,7 +1611,7 @@ function AddVariantForm({ productId, onClose, onCreated }) {
     label: label.trim(), price: Number(price), stockQty: Number(stockQty) || 0,
     sku: sku.trim() || undefined, imageUrl: imageUrl || undefined,
   }));
-  const valid = label.trim() && Number(price) > 0;
+  const valid = label.trim() && Number(price) > 0 && sku.trim();
   function handleFile(e) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -1621,13 +1621,13 @@ function AddVariantForm({ productId, onClose, onCreated }) {
 
   return (
     <div style={{ marginTop: 10 }}>
-      <label className="field-label">اسم الخيار (مثال: أحمر - وسط - كرتونة)</label>
+      <label className="field-label">اسم النوع (مثال: أحمر - وسط - كرتونة)</label>
       <input className="field-input" value={label} onChange={(e) => setLabel(e.target.value)} />
       <label className="field-label">السعر (د.ل)</label>
       <input className="field-input" type="number" min="0" step="0.05" value={price} onChange={(e) => setPrice(e.target.value)} />
       <label className="field-label">الكمية المتوفرة</label>
       <input className="field-input" type="number" min="0" value={stockQty} onChange={(e) => setStockQty(e.target.value)} />
-      <label className="field-label">كود الخيار (اختياري) + صورة</label>
+      <label className="field-label">كود النوع (إجباري) + صورة</label>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
         <input className="field-input" style={{ marginBottom: 0, flex: 1 }} value={sku} onChange={(e) => setSku(e.target.value)} dir="ltr" />
         {imageUrl
@@ -1641,7 +1641,7 @@ function AddVariantForm({ productId, onClose, onCreated }) {
       <div className="add-form-actions">
         <button className="btn-primary" disabled={!valid || create.pending || uploading}
           onClick={() => create.run().then(onCreated).catch(() => {})}>
-          {create.pending ? "جارٍ الحفظ…" : "حفظ الخيار"}
+          {create.pending ? "جارٍ الحفظ…" : "حفظ النوع"}
         </button>
         <button className="btn-ghost" onClick={onClose}>إلغاء</button>
       </div>
@@ -1679,7 +1679,7 @@ function StockHistoryModal({ product, onClose }) {
   );
 }
 
-// منشئ الخيارات (ألوان/مقاسات/عبوات) داخل نموذج إضافة الصنف نفسه — كل خيار سطر: الاسم، السعر، الكمية، كود المورد، صورة
+// منشئ الأنواع (ألوان/مقاسات/عبوات) داخل نموذج إضافة الصنف نفسه — كل نوع سطر: الاسم، السعر، الكمية، كود المورد، صورة
 function VariantsBuilder({ value, onChange }) {
   const setRow = (i, patch) => onChange(value.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
   const addRow = () => onChange([...value, { label: "", price: "", stockQty: "", sku: "", imageUrl: "" }]);
@@ -1704,7 +1704,7 @@ function VariantsBuilder({ value, onChange }) {
       {value.map((r, i) => (
         <div key={i} className="detail-card" style={{ padding: 10, marginBottom: 8 }}>
           <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 6 }}>
-            <input className="field-input" style={{ marginBottom: 0, flex: 1 }} placeholder="الخيار (مثال: أحمر - وسط)"
+            <input className="field-input" style={{ marginBottom: 0, flex: 1 }} placeholder="النوع (مثال: أحمر - وسط)"
               value={r.label} onChange={(e) => setRow(i, { label: e.target.value })} />
             <button type="button" className="link-btn" onClick={() => removeRow(i)}>حذف</button>
           </div>
@@ -1715,7 +1715,7 @@ function VariantsBuilder({ value, onChange }) {
               value={r.stockQty} onChange={(e) => setRow(i, { stockQty: e.target.value })} />
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <input className="field-input" style={{ marginBottom: 0, flex: 1 }} dir="ltr" placeholder="كود المورد (اختياري)"
+            <input className="field-input" style={{ marginBottom: 0, flex: 1 }} dir="ltr" placeholder="كود النوع (إجباري)"
               value={r.sku} onChange={(e) => setRow(i, { sku: e.target.value })} />
             {r.imageUrl
               ? <img src={r.imageUrl} alt="" style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 8 }}
@@ -1729,8 +1729,8 @@ function VariantsBuilder({ value, onChange }) {
           </div>
         </div>
       ))}
-      <button type="button" className="chip chip-add" onClick={addRow}>+ إضافة خيار</button>
-      {value.length > 0 && <p className="hint" style={{ marginTop: 6 }}>إجمالي كمية الصنف = مجموع الخيارات: <b>{total}</b></p>}
+      <button type="button" className="chip chip-add" onClick={addRow}>+ إضافة نوع</button>
+      {value.length > 0 && <p className="hint" style={{ marginTop: 6 }}>إجمالي كمية الصنف = مجموع الأنواع: <b>{total}</b></p>}
     </div>
   );
 }
@@ -1753,7 +1753,7 @@ function AddProductForm({ sections, onClose, onCreated }) {
   const [hasVariants, setHasVariants] = useState(false);
   const [variants, setVariants] = useState([{ label: "", price: "", stockQty: "", sku: "", imageUrl: "" }]);
   const variantsValid = !hasVariants || (variants.length > 0 &&
-    variants.every((v) => v.label.trim() && Number(v.price) > 0) &&
+    variants.every((v) => v.label.trim() && Number(v.price) > 0 && v.sku.trim()) &&
     new Set(variants.map((v) => v.label.trim())).size === variants.length);
 
   const create = useAction(() => api.createProduct({
@@ -1766,7 +1766,7 @@ function AddProductForm({ sections, onClose, onCreated }) {
     imageUrl: hasVariants ? undefined : (imageUrl || undefined),
   }));
 
-  const valid = form.sectionId && form.name.trim() && form.unit.trim() && variantsValid && (hasVariants || form.basePrice);
+  const valid = form.sectionId && form.name.trim() && form.unit.trim() && variantsValid && (hasVariants || (form.basePrice && form.supplierSku.trim()));
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
   function handleFile(e) {
@@ -1828,10 +1828,10 @@ function AddProductForm({ sections, onClose, onCreated }) {
       )}
 
       {hasVariants ? (
-        <p className="hint">كود وصورة كل خيار تضيفهم داخل الخيار نفسه، وصورة أول خيار تصير صورة الصنف للعميل.</p>
+        <p className="hint">كود وصورة كل نوع تضيفهم داخل النوع نفسه، وصورة أول نوع تصير صورة الصنف للعميل.</p>
       ) : (
         <>
-      <label className="field-label">رقم الصنف عندك (اختياري)</label>
+      <label className="field-label">رقم الصنف عندك (إجباري)</label>
       <input className="field-input" placeholder="مثال: SKU-1042" value={form.supplierSku} onChange={set("supplierSku")} />
 
       <label className="field-label">صورة الصنف (اختياري)</label>
@@ -2190,7 +2190,7 @@ function ImportProductsView({ sections, onClose, onImported }) {
               unit: String(r["وحدة البيع"] || "").trim(),
               basePrice: Number(r["السعر (د.ل)"] || 0),
               stockQty: Number(r["الكمية المتوفرة"] || 0),
-              supplierSku: String(r["رقم الصنف عندك (اختياري)"] || "").trim(),
+              supplierSku: String(r["رقم الصنف عندك (إجباري)"] || r["رقم الصنف عندك (اختياري)"] || "").trim(),
             }));
           resolve(cleaned);
         } catch (err) { reject("تعذّر قراءة الملف — تأكد من استخدام النموذج الصحيح"); }
@@ -2223,7 +2223,7 @@ function ImportProductsView({ sections, onClose, onImported }) {
     return (
       <div className="login-card" style={{ marginTop: 16 }}>
         <p className="hint" style={{ marginBottom: 12 }}>
-          تم تحديث الكمية والسعر لـ {result.updatedCount} صنف/خيار موجود بالفعل تلقائيًا.
+          تم تحديث الكمية والسعر لـ {result.updatedCount} صنف/نوع موجود بالفعل تلقائيًا.
           {result.skippedCount > 0 && ` تم تجاهل ${result.skippedCount} صف (بدون رقم صنف).`}
         </p>
 
@@ -2289,7 +2289,7 @@ function ImportProductsView({ sections, onClose, onImported }) {
           <p className="hint">تم العثور على {rows.length} صنف في «{fileName}»</p>
           <div className="note-block" style={{ marginTop: 8 }}>
             <span className="note-label">تذكير</span>
-            <p>رقم الصنف (أو كود الخيار) إجباري لكل الصفوف — يُستخدم للمطابقة مع أصنافك الحالية. الكمية والسعر في الملف يصيرون هم الكمية والسعر الجديدين في المنظومة (مو يتضافوا على القديم).</p>
+            <p>رقم الصنف (أو كود النوع) إجباري لكل الصفوف — يُستخدم للمطابقة مع أصنافك الحالية. الكمية والسعر في الملف يصيرون هم الكمية والسعر الجديدين في المنظومة (مو يتضافوا على القديم).</p>
           </div>
           {noSkuRows.length > 0 && (
             <div className="note-block" style={{ marginTop: 8 }}>
