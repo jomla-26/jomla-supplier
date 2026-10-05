@@ -573,12 +573,12 @@ function DateRangeBar({ value, onChange }) {
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
         <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, flex: "1 1 140px", minWidth: 0 }}>
           من
-          <input type="date" className="field-input" style={{ width: "100%", minWidth: 0, marginBottom: 0 }}
+          <input type="date" lang="en-GB" dir="ltr" className="field-input" style={{ width: "100%", minWidth: 0, marginBottom: 0 }}
             value={v.from} max={v.to || undefined} onChange={(e) => set({ from: e.target.value })} />
         </label>
         <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, flex: "1 1 140px", minWidth: 0 }}>
           إلى
-          <input type="date" className="field-input" style={{ width: "100%", minWidth: 0, marginBottom: 0 }}
+          <input type="date" lang="en-GB" dir="ltr" className="field-input" style={{ width: "100%", minWidth: 0, marginBottom: 0 }}
             value={v.to} min={v.from || undefined} onChange={(e) => set({ to: e.target.value })} />
         </label>
         {(v.from || v.to) && (
