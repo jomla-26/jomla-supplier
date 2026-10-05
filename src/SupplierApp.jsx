@@ -543,10 +543,64 @@ function SupportChatView() {
   );
 }
 
+/* ---------------------- شريط فلترة التاريخ (من/إلى) ---------------------- */
+
+const tripoliDay = (offsetDays = 0) => {
+  const d = new Date(Date.now() + offsetDays * 86400000);
+  return d.toLocaleDateString("en-CA", { timeZone: "Africa/Tripoli" });
+};
+const EMPTY_RANGE = { from: "", to: "" };
+// يحوّل المدى إلى باراميترات للـ API (فاضي = بدون فلتر)
+const rangeParams = (r) => ({ from: r?.from || undefined, to: r?.to || undefined });
+const rangeLabel = (r) => (r?.from || r?.to)
+  ? `الفترة: ${r.from || "البداية"} إلى ${r.to || "اليوم"}` : "";
+
+function DateRangeBar({ value, onChange }) {
+  const v = value || EMPTY_RANGE;
+  const set = (patch) => onChange({ ...v, ...patch });
+  const today = tripoliDay();
+  const monthStart = today.slice(0, 8) + "01";
+  const chips = [
+    { label: "اليوم", r: { from: today, to: today } },
+    { label: "7 أيام", r: { from: tripoliDay(-6), to: today } },
+    { label: "هذا الشهر", r: { from: monthStart, to: today } },
+    { label: "الكل", r: EMPTY_RANGE },
+  ];
+  const active = (r) => r.from === v.from && r.to === v.to;
+  const invalid = v.from && v.to && v.from > v.to;
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
+        <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}>
+          من
+          <input type="date" className="field-input" style={{ width: "auto", marginBottom: 0 }}
+            value={v.from} max={v.to || undefined} onChange={(e) => set({ from: e.target.value })} />
+        </label>
+        <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}>
+          إلى
+          <input type="date" className="field-input" style={{ width: "auto", marginBottom: 0 }}
+            value={v.to} min={v.from || undefined} onChange={(e) => set({ to: e.target.value })} />
+        </label>
+        {(v.from || v.to) && (
+          <button className="link-btn" onClick={() => onChange(EMPTY_RANGE)} aria-label="مسح الفترة">✕ مسح</button>
+        )}
+      </div>
+      <div className="chip-row" style={{ marginBottom: 0 }}>
+        {chips.map((c) => (
+          <button key={c.label} className={"chip" + (active(c.r) ? " chip-active" : "")}
+            onClick={() => onChange(c.r)}>{c.label}</button>
+        ))}
+      </div>
+      {invalid && <p className="field-error">تاريخ البداية بعد تاريخ النهاية</p>}
+    </div>
+  );
+}
+
 /* -------------------------- الطلبيات -------------------------- */
 
 function OrdersView({ onOpen }) {
   const [status, setStatus] = useState("all");
+  const [range, setRange] = useState(EMPTY_RANGE);
   const filters = [
     { id: "all", label: "الكل" },
     { id: "sent", label: "جديدة" },
@@ -557,8 +611,8 @@ function OrdersView({ onOpen }) {
   ];
 
   const { data, loading, error, reload } = useFetch(
-    (signal) => api.orders(status === "all" ? undefined : { status }, signal),
-    [status]
+    (signal) => api.orders({ ...(status === "all" ? {} : { status }), ...rangeParams(range) }, signal),
+    [status, range.from, range.to]
   );
 
   const newCount = (data ?? []).filter((p) => p.status === "sent").length;
@@ -573,6 +627,8 @@ function OrdersView({ onOpen }) {
           <span>لديك {newCount} {newCount === 1 ? "طلبية جديدة" : "طلبيات جديدة"} بانتظار تأكيد التوفر</span>
         </div>
       )}
+
+      <DateRangeBar value={range} onChange={setRange} />
 
       <div className="chip-row">
         {filters.map((f) => (
@@ -626,12 +682,12 @@ function esc(s) {
 
 // طباعة/حفظ PDF لكشف حركة الحساب — النافذة تُفتح فورًا عند الضغط (قبل أي انتظار)
 // عشان المتصفح ما يحظرها كنافذة منبثقة
-function openLedgerStatement({ title, partyName, rows, balanceLabel }) {
+function openLedgerStatement({ title, partyName, rows, balanceLabel, period }) {
   const w = window.open("", "_blank");
   if (!w) return alert("يرجى السماح بالنوافذ المنبثقة لعرض الكشف.");
   const d = (r) => String(r.entry_date || "").slice(0, 10);
-  const totalDebit = rows.reduce((s, r) => s + Number(r.debit || 0), 0);
-  const totalCredit = rows.reduce((s, r) => s + Number(r.credit || 0), 0);
+  const totalDebit = rows.filter((r) => !r.is_opening).reduce((s, r) => s + Number(r.debit || 0), 0);
+  const totalCredit = rows.filter((r) => !r.is_opening).reduce((s, r) => s + Number(r.credit || 0), 0);
   const body = rows.map((r, i) => `<tr><td>${i + 1}</td><td>${d(r)}</td><td>${esc(r.label)}</td><td>${esc(r.reference || "—")}</td>
     <td>${esc(r.voucher_number || "—")}</td><td>${Number(r.debit) > 0 ? Number(r.debit).toFixed(2) : "—"}</td>
     <td>${Number(r.credit) > 0 ? Number(r.credit).toFixed(2) : "—"}</td><td>${Math.abs(Number(r.balance)).toFixed(2)}</td></tr>`).join("");
@@ -652,7 +708,7 @@ th{background:#181d2a;color:#fff;font-family:'Cairo',sans-serif}
 </style></head><body>
 <div class="pdf-toolbar"><button onclick="window.print()">🖨️ طباعة / حفظ PDF</button><button onclick="window.close()">✕ إغلاق</button></div>
 <div class="sheet"><img src="${LOGO_FULL}" alt="${COMPANY.name}" style="height:44px;display:block;margin-bottom:10px"/>
-<h2>${esc(title)}</h2><div class="meta">${esc(partyName)} · ${COMPANY.name} · ${new Date().toISOString().slice(0, 10)}</div>
+<h2>${esc(title)}</h2><div class="meta">${esc(partyName)} · ${COMPANY.name} · ${new Date().toISOString().slice(0, 10)}${period ? ` · ${esc(period)}` : ""}</div>
 <table><thead><tr><th>#</th><th>التاريخ</th><th>البيان</th><th>الفاتورة</th><th>الإيصال</th><th>مدين</th><th>دائن</th><th>الرصيد</th></tr></thead>
 <tbody>${body || '<tr><td colspan="8">لا توجد حركة</td></tr>'}</tbody></table>
 <div class="sum"><div>إجمالي المدين: ${totalDebit.toFixed(2)} د.ل</div><div>إجمالي الدائن: ${totalCredit.toFixed(2)} د.ل</div><div>${esc(balanceLabel)}</div></div>
@@ -1152,11 +1208,13 @@ function BulkImagesModal({ onClose, onDone }) {
 
 function StockVouchersScreen({ sections, products, onClose, onChanged }) {
   const [typeFilter, setTypeFilter] = useState("");
+  const [range, setRange] = useState(EMPTY_RANGE);
   const [creating, setCreating] = useState(null); // "addition" | "discount" | null
   const [showImport, setShowImport] = useState(false);
   const [openId, setOpenId] = useState(null);
   const { data, loading, error, reload } = useFetch(
-    (s) => api.stockVouchers(typeFilter ? { voucherType: typeFilter } : undefined, s), [typeFilter]
+    (s) => api.stockVouchers({ ...(typeFilter ? { voucherType: typeFilter } : {}), ...rangeParams(range) }, s),
+    [typeFilter, range.from, range.to]
   );
 
   const TYPE_LABELS = { addition: "إضافة", discount: "خصم" };
@@ -1199,6 +1257,8 @@ function StockVouchersScreen({ sections, products, onClose, onChanged }) {
           <Upload size={16} style={{ verticalAlign: "-3px", marginLeft: 6 }} /> استيراد من إكسل
         </button>
       </div>
+
+      <DateRangeBar value={range} onChange={setRange} />
 
       <div className="chip-row" style={{ marginBottom: 12 }}>
         <button className={"chip" + (typeFilter === "" ? " chip-active" : "")} onClick={() => setTypeFilter("")}>الكل</button>
@@ -1668,7 +1728,9 @@ function AddVariantForm({ productId, onClose, onCreated }) {
 }
 
 function StockHistoryModal({ product, onClose }) {
-  const { data, loading, error } = useFetch(() => api.stockHistory(product.id), [product.id]);
+  const [range, setRange] = useState(EMPTY_RANGE);
+  const { data, loading, error } = useFetch(
+    () => api.stockHistory(product.id, rangeParams(range)), [product.id, range.from, range.to]);
 
   return (
     <div className="login-card" style={{ marginTop: 10 }}>
@@ -1676,8 +1738,9 @@ function StockHistoryModal({ product, onClose }) {
         <span>سجل حركة: {product.name}</span>
         <button className="link-btn" onClick={onClose}>إغلاق</button>
       </div>
+      <DateRangeBar value={range} onChange={setRange} />
       {loading ? <Spinner /> : error ? <p className="field-error">{error}</p> : (
-        !data?.length ? <p className="hint">لا توجد حركات مسجّلة بعد</p> : (
+        !data?.length ? <p className="hint">{range.from || range.to ? "لا توجد حركات في هذه الفترة" : "لا توجد حركات مسجّلة بعد"}</p> : (
           <div className="ledger-list">
             {data.map((m) => (
               <div className="order-row" key={m.id} style={{ cursor: "default" }}>
@@ -2000,15 +2063,16 @@ function openVoucherPdf(id) {
 function LedgerView({ supplierId }) {
   const [tab, setTab] = useState("orders");
   const [query, setQuery] = useState("");
-  const orders = useFetch((signal) => api.orders(undefined, signal), []);
-  const ledger = useFetch(() => api.supplierLedger(supplierId), [supplierId]);
+  const [range, setRange] = useState(EMPTY_RANGE);
+  const orders = useFetch((signal) => api.orders(rangeParams(range), signal), [range.from, range.to]);
+  const ledger = useFetch(() => api.supplierLedger(supplierId, rangeParams(range)), [supplierId, range.from, range.to]);
   const rows = ledger.data ?? [];
   const balance = rows.length ? Number(rows[rows.length - 1].balance) : 0;
 
   const parts = (orders.data ?? []).filter(
     (p) => !query.trim() || String(p.order_number).toLowerCase().includes(query.trim().toLowerCase())
   );
-  const totalPaid = rows.reduce((sum, e) => sum + Number(e.debit || 0), 0);
+  const totalPaid = rows.filter((e) => !e.is_opening).reduce((sum, e) => sum + Number(e.debit || 0), 0);
   const totalSales = (orders.data ?? [])
     .filter((p) => p.status !== "cancelled")
     .reduce((sum, p) => sum + Number(p.subtotal || 0), 0);
@@ -2029,10 +2093,12 @@ function LedgerView({ supplierId }) {
         </button>
       </div>
 
+      <DateRangeBar value={range} onChange={setRange} />
+
       {tab === "orders" ? (
         orders.loading ? <Spinner />
         : orders.error ? <ErrorState message={orders.error} onRetry={orders.reload} />
-        : !orders.data?.length ? <Centered><Package size={26} /><p>لا توجد فواتير بعد</p></Centered>
+        : !orders.data?.length ? <Centered><Package size={26} /><p>{range.from || range.to ? "لا توجد فواتير في هذه الفترة" : "لا توجد فواتير بعد"}</p></Centered>
         : (
           <>
             <div className="stat-grid" style={{ gridTemplateColumns: "1fr 1fr 1fr" }}>
@@ -2086,11 +2152,11 @@ function LedgerView({ supplierId }) {
           <div className="items-report">
             <button className="btn-ghost" style={{ marginBottom: 10 }}
               onClick={() => openLedgerStatement({
-                title: "كشف حساب المورد", partyName: "حسابي", rows,
+                title: "كشف حساب المورد", partyName: "حسابي", rows, period: rangeLabel(range),
                 balanceLabel: balance > 0 ? `المستحق لك: ${money(balance)}` : balance < 0 ? `عليك للشركة: ${money(Math.abs(balance))}` : "الرصيد: متوازن",
               })}>🖨️ طباعة / PDF لكشف الحساب</button>
             {rows.map((e, i) => (
-              <div className="item-tx-row" key={i}>
+              <div className="item-tx-row" key={i} style={e.is_opening ? { fontWeight: 700 } : undefined}>
                 <span className="item-tx-date">{String(e.entry_date).slice(0, 10)}</span>
                 <span className="item-tx-qty">{e.label || "حركة مالية"}{e.voucher_number ? ` — ${e.voucher_number}` : ""}</span>
                 <span className="item-tx-price">
@@ -2102,14 +2168,14 @@ function LedgerView({ supplierId }) {
           </div>
         )
       ) : (
-        <MyVouchersPanel />
+        <MyVouchersPanel range={range} />
       )}
     </div>
   );
 }
 
-function MyVouchersPanel() {
-  const { data, loading, error, reload } = useFetch(() => api.myVouchers(), []);
+function MyVouchersPanel({ range }) {
+  const { data, loading, error, reload } = useFetch(() => api.myVouchers(rangeParams(range)), [range?.from, range?.to]);
   if (loading) return <Spinner />;
   if (error) return <ErrorState message={error} onRetry={reload} />;
   if (!data?.length) return <Centered><p>لا توجد سندات بعد</p></Centered>;
@@ -2133,7 +2199,11 @@ function MyVouchersPanel() {
 
 function ReportsView() {
   const [period, setPeriod] = useState("week");
-  const { data, loading, error, reload } = useFetch(() => api.salesReport(period), [period]);
+  const [range, setRange] = useState(EMPTY_RANGE);
+  const custom = !!(range.from || range.to);
+  // الفترة المخصصة تتغلّب على الأزرار الجاهزة (اليوم/الأسبوع/الشهر)
+  const { data, loading, error, reload } = useFetch(
+    () => api.salesReport(period, rangeParams(range)), [period, range.from, range.to]);
   const periods = [
     { id: "today", label: "اليوم" }, { id: "week", label: "هذا الأسبوع" }, { id: "month", label: "هذا الشهر" },
   ];
@@ -2143,10 +2213,13 @@ function ReportsView() {
       <h2 className="section-heading">تقاريرك</h2>
       <div className="chip-row">
         {periods.map((p) => (
-          <button key={p.id} className={"chip" + (period === p.id ? " chip-active" : "")}
-            onClick={() => setPeriod(p.id)}>{p.label}</button>
+          <button key={p.id} className={"chip" + (!custom && period === p.id ? " chip-active" : "")}
+            onClick={() => { setRange(EMPTY_RANGE); setPeriod(p.id); }}>{p.label}</button>
         ))}
       </div>
+
+      <p className="hint" style={{ margin: "0 0 6px" }}>أو اختر فترة مخصصة:</p>
+      <DateRangeBar value={range} onChange={setRange} />
 
       {loading ? <Spinner /> : error ? <ErrorState message={error} onRetry={reload} /> : (
         <>
