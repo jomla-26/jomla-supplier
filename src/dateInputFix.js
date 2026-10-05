@@ -12,3 +12,14 @@ if (typeof window !== "undefined" && !window.__dateFixOn) {
   document.addEventListener("input", mark, true);
   document.addEventListener("change", mark, true);
 }
+
+// الضغط على الحقل يفتح لوحة اختيار التاريخ مباشرة (بدل الكتابة بالأجزاء المشوّهة)
+if (typeof document !== "undefined" && !window.__dateFixClick) {
+  window.__dateFixClick = true;
+  document.addEventListener("click", (e) => {
+    const el = e.target;
+    if (el && el.tagName === "INPUT" && el.type === "date" && typeof el.showPicker === "function") {
+      try { el.showPicker(); } catch (_) { /* ignore */ }
+    }
+  }, true);
+}

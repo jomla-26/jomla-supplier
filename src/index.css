@@ -13,7 +13,9 @@ body {
 }
 
 /* حقل التاريخ الفارغ: إخفاء النص المعكوس وعرض "اختر التاريخ" */
-input[type="date"][data-empty="true"]::-webkit-datetime-edit { color: transparent; }
+input[type="date"][data-empty="true"]::-webkit-datetime-edit,
+input[type="date"][data-empty="true"]::-webkit-datetime-edit-fields-wrapper { display: none; }
+input[type="date"] { cursor: pointer; }
 input[type="date"][data-empty="true"] {
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='24'><text x='60' y='17' text-anchor='middle' font-family='sans-serif' font-size='13' fill='%238a8f98'>اختر التاريخ</text></svg>");
   background-repeat: no-repeat;
