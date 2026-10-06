@@ -51,6 +51,22 @@ export default function JomlaSupplierApp() {
     setHistory((h) => h.slice(0, -1));
   };
 
+  // الضغط على إشعار يفتح الطلبية (جزء المورد) أو شاشة الأصناف
+  useEffect(() => {
+    const h = async (e) => {
+      const n = e.detail || {};
+      if (n.order_id) {
+        try {
+          const list = await api.orders();
+          const part = (list ?? []).find((p) => p.order_id === n.order_id);
+          if (part) { setSelectedPartId(part.order_supplier_id); openView("orderDetail"); }
+        } catch { /* ignore */ }
+      } else if (["product.approved", "product.rejected"].includes(n.template_code)) setView("products");
+    };
+    window.addEventListener("jomla-notify-nav", h);
+    return () => window.removeEventListener("jomla-notify-nav", h);
+  });
+
   if (loading) return <Shell><Centered><Loader2 className="spin" size={26} /><p>جارٍ التحميل…</p></Centered></Shell>;
   if (!actor) return <Shell><AuthGate onRequestOtp={requestOtp} onVerify={verifyOtp} /></Shell>;
 
@@ -390,6 +406,12 @@ function NotificationBell() {
   function markAll() {
     api.markAllNotificationsRead().then(reload).catch(() => {});
   }
+  // الضغط على الإشعار: نعلّمه مقروء ونقفل القائمة ونفتح المكان المعني (طلبية/قسم/شاشة) عبر حدث يلتقطه التطبيق
+  function openNotification(n) {
+    markRead(n);
+    setOpen(false);
+    window.dispatchEvent(new CustomEvent("jomla-notify-nav", { detail: n }));
+  }
 
   return (
     <div style={{ position: "relative" }}>
@@ -409,7 +431,7 @@ function NotificationBell() {
             <div className="notif-list">
               {data.notifications.map((n) => (
                 <div key={n.id} className={"notif-row" + (!n.in_app_read_at ? " notif-row-unread" : "")}
-                  onClick={() => markRead(n)}>
+                  onClick={() => openNotification(n)} style={{ cursor: "pointer" }}>
                   <span className="notif-title">{n.title}</span>
                   <span className="notif-body">{n.body}</span>
                   <span className="notif-time">{new Date(n.created_at).toLocaleString("ar")}</span>
