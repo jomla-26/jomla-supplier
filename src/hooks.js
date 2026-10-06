@@ -39,7 +39,17 @@ export function useSession(accountType) {
   }, []);
 
   const requestOtp = useCallback(
-    (phone) => api.requestOtp(accountType, phone),
+    async (phone) => {
+      const r = await api.requestOtp(accountType, phone);
+      // وضع التجربة المؤقت: السيرفر يقول "ادخل مباشرة" لأرقام التجربة فقط (بدون كتابة الرمز)
+      if (r?.skipOtp && r.otp) {
+        const data = await api.verifyOtp(accountType, phone, r.otp);
+        setActor(data.actor);
+        const me = await api.me().catch(() => null);
+        if (me) setProfile(me);
+      }
+      return r;
+    },
     [accountType]
   );
 
