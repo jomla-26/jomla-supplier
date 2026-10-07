@@ -1,5 +1,5 @@
 // شاشات الدخول بكلمة المرور (مشتركة بين تطبيقات جملة الأربعة — نفس الملف حرفيًا في كل تطبيق).
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { api } from "./api.js";
 import { useAction } from "./hooks.js";
 
@@ -236,6 +236,39 @@ export function SetPasswordView({ onSaved, onLogout }) {
 }
 
 /** تغيير كلمة المرور + الخروج من كل الأجهزة (+ رمز استرجاع جديد للمدير العام) */
+function fmtWhen(d) {
+  try { return new Date(d).toLocaleString("ar-LY", { dateStyle: "medium", timeStyle: "short" }); } catch { return ""; }
+}
+
+// قائمة الأجهزة اللي دخلت بالحساب، مع إخراج أي جهاز
+function DevicesBox({ onLoggedOut }) {
+  const [list, setList] = useState(null);
+  const [err, setErr] = useState("");
+  const load = () => api.sessions().then(setList).catch((e) => setErr(e.message || "تعذر تحميل الأجهزة"));
+  useEffect(() => { load(); }, []);
+  const kick = useAction(async (s) => {
+    await api.revokeSession(s.id);
+    if (s.current) onLoggedOut?.(); else await load();
+  });
+  return (
+    <div className="sec-box">
+      <h4>أجهزتي</h4>
+      {err && <p className="field-error">{err}</p>}
+      {list && !list.length && <p className="hint">ما فيه أجهزة مسجّلة بعد. تظهر هنا بعد دخولك القادم.</p>}
+      {(list || []).map((s) => (
+        <div key={s.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "8px 0", borderTop: "1px solid rgba(128,128,128,.2)" }}>
+          <div>
+            <div style={{ fontWeight: 600 }}>{s.device_label || "جهاز"}{s.current ? " (هذا الجهاز)" : ""}</div>
+            <div className="hint" style={{ margin: 0 }}>آخر استخدام: {fmtWhen(s.last_seen_at)}</div>
+          </div>
+          <button className="btn-ghost" disabled={kick.pending} onClick={() => kick.run(s).catch(() => {})}>{s.current ? "خروج" : "إخراج"}</button>
+        </div>
+      ))}
+      {kick.error && <p className="field-error">{kick.error}</p>}
+    </div>
+  );
+}
+
 export function SecurityPanel({ showRecovery = false, onLoggedOut }) {
   const [cur, setCur] = useState("");
   const [pw, setPw] = useState("");
@@ -282,8 +315,10 @@ export function SecurityPanel({ showRecovery = false, onLoggedOut }) {
         </div>
       )}
 
+      <DevicesBox onLoggedOut={onLoggedOut} />
+
       <div className="sec-box">
-        <h4>الأجهزة</h4>
+        <h4>الخروج من كل الأجهزة</h4>
         <p className="hint">لو ضاع تلفونك أو دخلت من جهاز مش جهازك، اخرج من كل الأجهزة (تحتاج تدخل من جديد).</p>
         {outAll.error && <p className="field-error">{outAll.error}</p>}
         {confirmAll ? (

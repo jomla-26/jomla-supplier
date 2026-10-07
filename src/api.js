@@ -169,6 +169,8 @@ export const api = {
   },
   setPassword: (body) => request("/auth/password/set", { method: "POST", body }),
   newRecoveryCode: (currentPassword) => request("/auth/password/new-recovery-code", { method: "POST", body: { currentPassword } }),
+  sessions: () => request("/auth/sessions"),
+  revokeSession: async (id) => { const r = await request(`/auth/sessions/${id}/revoke`, { method: "POST", body: {} }); if (r?.self) session.clear(); return r; },
   logoutAll: async () => { await request("/auth/password/logout-all", { method: "POST", body: {} }); session.clear(); },
   forgotPassword: (accountType, phone, reason) => request("/auth/password/forgot", { method: "POST", body: { accountType, phone, reason } }),
   passwordRequests: () => request("/auth/password/requests"),
