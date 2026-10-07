@@ -14,6 +14,11 @@ const SEC_CSS = `
   background:rgba(128,128,128,.12);user-select:all;word-break:break-all}
 .sec-ok{color:#1f8a4c;font-weight:600;margin:6px 0}
 .sec-warn{color:#b45309;font-size:13px;line-height:1.7;margin:8px 0}
+.pw-links{display:flex;flex-direction:column;align-items:center;gap:12px;margin-top:16px}
+.pw-links .link-btn{margin:0;padding:4px 8px}
+.pw-sep{display:flex;align-items:center;gap:10px;width:100%;color:rgba(128,128,128,.9);font-size:13px}
+.pw-sep::before,.pw-sep::after{content:"";flex:1;height:1px;background:rgba(128,128,128,.3)}
+.pw-alt{width:100%}
 `;
 
 function PwInput({ value, onChange, placeholder, onEnter, autoComplete = "current-password" }) {
@@ -24,7 +29,7 @@ function PwInput({ value, onChange, placeholder, onEnter, autoComplete = "curren
         autoComplete={autoComplete} style={{ textAlign: "right", paddingLeft: 64 }}
         onChange={(e) => onChange(e.target.value)} onKeyDown={(e) => e.key === "Enter" && onEnter?.()} />
       <button type="button" className="link-btn" tabIndex={-1}
-        style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", margin: 0 }}
+        style={{ position: "absolute", left: 10, top: 21, transform: "translateY(-50%)", margin: 0, padding: "4px 6px" }}
         onClick={() => setShow((s) => !s)}>{show ? "إخفاء" : "إظهار"}</button>
     </div>
   );
@@ -113,7 +118,7 @@ export function PasswordSteps({
           onClick={() => checkPhone() && recover.run().catch(() => {})}>
           {recover.pending ? "جارٍ التحقق…" : "تغيير كلمة المرور"}
         </button>
-        <button className="link-btn" onClick={() => setStep("password")}>رجوع</button>
+        <div className="pw-links"><button className="link-btn" onClick={() => setStep("password")}>رجوع</button></div>
       </div>
     );
   }
@@ -121,6 +126,7 @@ export function PasswordSteps({
   if (step === "forgot") {
     return (
       <div className="login-card">
+        <style>{SEC_CSS}</style>
         {phoneField}
         {sent ? (
           <>
@@ -139,8 +145,10 @@ export function PasswordSteps({
             </button>
           </>
         )}
-        {allowRecovery && <button className="link-btn" onClick={() => setStep("recover")}>عندي رمز استرجاع</button>}
-        <button className="link-btn" onClick={() => { setSent(""); setStep("password"); }}>رجوع</button>
+        <div className="pw-links">
+          {allowRecovery && <button className="link-btn" onClick={() => setStep("recover")}>عندي رمز استرجاع</button>}
+          <button className="link-btn" onClick={() => { setSent(""); setStep("password"); }}>رجوع</button>
+        </div>
       </div>
     );
   }
@@ -148,6 +156,7 @@ export function PasswordSteps({
   if (step === "code") {
     return (
       <div className="login-card">
+        <style>{SEC_CSS}</style>
         {phoneField}
         <label className="field-label">رمز الدخول من الإدارة (6 أرقام)</label>
         <input className="field-input" dir="ltr" style={{ textAlign: "center", letterSpacing: 6 }} inputMode="numeric" maxLength={6}
@@ -159,7 +168,10 @@ export function PasswordSteps({
           {codeLogin.pending ? "جارٍ الدخول…" : "دخول"}
         </button>
         <p className="hint">بعد الدخول بالرمز راح تطلب منك كلمة مرور جديدة.</p>
-        <button className="link-btn" onClick={() => setStep("password")}>رجوع</button>
+        <div className="pw-links">
+          <button className="link-btn" onClick={() => setStep("password")}>رجوع</button>
+          <button className="link-btn" onClick={() => setStep("phone")}>الدخول برمز SMS</button>
+        </div>
       </div>
     );
   }
@@ -167,6 +179,7 @@ export function PasswordSteps({
   // password
   return (
     <div className="login-card">
+      <style>{SEC_CSS}</style>
       {phoneField}
       <label className="field-label">كلمة المرور</label>
       <PwInput value={pw} onChange={setPw} placeholder="كلمة المرور"
@@ -176,13 +189,12 @@ export function PasswordSteps({
         onClick={() => checkPhone() && login.run().catch(() => {})}>
         {login.pending ? "جارٍ الدخول…" : "دخول"}
       </button>
-      <div className="otp-footer">
+      <div className="pw-links">
         <button className="link-btn" onClick={() => setStep("forgot")}>نسيت كلمة المرور؟</button>
-        <button className="link-btn" onClick={() => setStep("code")}>أول مرة؟ عندي رمز من الإدارة</button>
+        <div className="pw-sep"><span>أو</span></div>
+        <button className="btn-ghost pw-alt" onClick={() => setStep("code")}>أول مرة؟ ادخل برمز من الإدارة</button>
+        {onNewAccount && <button className="link-btn" onClick={onNewAccount}>مستخدم جديد؟ أنشئ حسابك من هنا</button>}
       </div>
-      <button className="link-btn" onClick={() => setStep("phone")}>الدخول برمز SMS</button>
-      {allowRecovery && <button className="link-btn" onClick={() => setStep("recover")}>عندي رمز استرجاع</button>}
-      {onNewAccount && <button className="link-btn" onClick={onNewAccount}>مستخدم جديد؟ أنشئ حسابك من هنا</button>}
     </div>
   );
 }
