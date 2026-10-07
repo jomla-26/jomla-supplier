@@ -61,6 +61,33 @@ export function useSession(accountType) {
     return data.actor;
   }, [accountType]);
 
+  const afterLogin = useCallback(async (actor) => {
+    setActor(actor);
+    const me = await api.me().catch(() => null);
+    if (me) setProfile(me);
+    return actor;
+  }, []);
+
+  const passwordLogin = useCallback(async (phone, password) => {
+    const data = await api.passwordLogin(accountType, phone, password);
+    return afterLogin(data.actor);
+  }, [accountType, afterLogin]);
+
+  const codeLogin = useCallback(async (phone, code) => {
+    const data = await api.codeLogin(accountType, phone, code);
+    return afterLogin(data.actor);
+  }, [accountType, afterLogin]);
+
+  // الاسترجاع برمز المدير: الجلسة تُحفظ فورًا لكن الدخول للتطبيق ينتظر المستخدم يسجل رمز الاسترجاع الجديد (adoptSession)
+  const recoverLogin = useCallback((phone, recoveryCode, newPassword) => api.recoverLogin(phone, recoveryCode, newPassword), []);
+  const adoptSession = useCallback(() => afterLogin(session.actor), [afterLogin]);
+
+  const reloadProfile = useCallback(async () => {
+    const me = await api.me().catch(() => null);
+    if (me) setProfile(me);
+    return me;
+  }, []);
+
   const logout = useCallback(() => {
     api.logout();
     setActor(null);
@@ -72,7 +99,7 @@ export function useSession(accountType) {
     [profile]
   );
 
-  return { actor, profile, loading, requestOtp, verifyOtp, logout, can };
+  return { actor, profile, loading, requestOtp, verifyOtp, passwordLogin, codeLogin, recoverLogin, adoptSession, reloadProfile, logout, can };
 }
 
 /**

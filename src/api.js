@@ -48,6 +48,9 @@ export const setUnauthorizedHandler = (fn) => { onUnauthorized = fn; };
    هذا مختلف عن 403 "ما عندك صلاحية" (ما نطلّع المستخدم منها). */
 const BLOCKED_MSG_RE = /(تم إيقاف هذا الحساب|حسابك غير مفعّل|حسابك لم يُعتمد|هذا الحساب غير متاح)/;
 
+// مسارات الدخول العامة: 401/403 فيها معناها "بيانات غلط" مو "انتهت الجلسة"
+const PUBLIC_AUTH = /^\/auth\/(otp|password\/(login|login-code|recover|forgot))/;
+
 function showLogoutNotice(message) {
   try {
     if (typeof document === "undefined") return;
@@ -70,7 +73,7 @@ function showLogoutNotice(message) {
 export function isAccountBlocked(status, payload, path = "") {
   if (status !== 403) return false;
   if (payload?.code === "ACCOUNT_BLOCKED") return true;
-  return !String(path).startsWith("/auth/otp") && BLOCKED_MSG_RE.test(payload?.error || "");
+  return !PUBLIC_AUTH.test(String(path)) && BLOCKED_MSG_RE.test(payload?.error || "");
 }
 
 /**
@@ -78,7 +81,7 @@ export function isAccountBlocked(status, payload, path = "") {
  * تمسح الجلسة، ترجّع التطبيق لشاشة الدخول، وتعرض الرسالة الواضحة، ثم ترمي ApiError.
  */
 export function guardAuthFailure(status, payload, path = "") {
-  if (status === 401) {
+  if (status === 401 && !PUBLIC_AUTH.test(String(path))) {
     session.clear();
     onUnauthorized();
     throw new ApiError(401, "انتهت الجلسة، يرجى تسجيل الدخول من جديد");
@@ -116,7 +119,7 @@ async function request(path, { method = "GET", body, params, signal } = {}) {
     throw new ApiError(0, "تعذّر الاتصال بالخادم، تحقق من الإنترنت");
   }
 
-  if (res.status === 401) {
+  if (res.status === 401 && !PUBLIC_AUTH.test(path)) {
     session.clear();
     onUnauthorized();
     throw new ApiError(401, "انتهت الجلسة، يرجى تسجيل الدخول من جديد");
@@ -127,7 +130,9 @@ async function request(path, { method = "GET", body, params, signal } = {}) {
   const payload = await res.json().catch(() => ({}));
   guardAuthFailure(res.status, payload, path);
   if (!res.ok) {
-    throw new ApiError(res.status, payload.error || "حدث خطأ غير متوقع", payload.details);
+    const apiErr = new ApiError(res.status, payload.error || "حدث خطأ غير متوقع", payload.details);
+    apiErr.code = payload.code ?? null;
+    throw apiErr;
   }
   return payload;
 }
@@ -146,6 +151,29 @@ export const api = {
     session.save(data.token, data.actor);
     return data;
   },
+
+  passwordLogin: async (accountType, phone, password) => {
+    const data = await request("/auth/password/login", { method: "POST", body: { accountType, phone, password } });
+    session.save(data.token, data.actor);
+    return data;
+  },
+  codeLogin: async (accountType, phone, code) => {
+    const data = await request("/auth/password/login-code", { method: "POST", body: { accountType, phone, code } });
+    session.save(data.token, data.actor);
+    return data;
+  },
+  recoverLogin: async (phone, recoveryCode, newPassword) => {
+    const data = await request("/auth/password/recover", { method: "POST", body: { phone, recoveryCode, newPassword } });
+    session.save(data.token, data.actor);
+    return data;
+  },
+  setPassword: (body) => request("/auth/password/set", { method: "POST", body }),
+  newRecoveryCode: (currentPassword) => request("/auth/password/new-recovery-code", { method: "POST", body: { currentPassword } }),
+  logoutAll: async () => { await request("/auth/password/logout-all", { method: "POST", body: {} }); session.clear(); },
+  forgotPassword: (accountType, phone, reason) => request("/auth/password/forgot", { method: "POST", body: { accountType, phone, reason } }),
+  passwordRequests: () => request("/auth/password/requests"),
+  dismissPasswordRequest: (id) => request(`/auth/password/requests/${id}/dismiss`, { method: "POST", body: {} }),
+  issueLoginCode: (body) => request("/auth/password/issue-code", { method: "POST", body }),
 
   me: () => request("/auth/me"),
     logout: () => session.clear(),
