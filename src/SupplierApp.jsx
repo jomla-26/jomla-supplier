@@ -1,3 +1,4 @@
+import { pushState, enablePush, disablePush } from "./push.js";
 import React, { useState, useEffect, useRef } from "react";
 import {
   ArrowRight, Package, Store, Truck, Plus, Check, X,
@@ -388,6 +389,28 @@ function LoginView({ onRequestOtp, onVerify, onNewAccount }) {
 
 /* ------------------------- الشريط العلوي ------------------------- */
 
+function PushToggle() {
+  const [st, setSt] = useState("off");
+  const [err, setErr] = useState("");
+  useEffect(() => { pushState().then(setSt); }, []);
+  if (st === "unsupported") return null;
+  async function toggle() {
+    setErr("");
+    try {
+      if (st === "on") { await disablePush(); setSt("off"); }
+      else { await enablePush(); setSt("on"); }
+    } catch (e) { setErr(e.message || "تعذّر التفعيل"); setSt(await pushState()); }
+  }
+  return (
+    <div style={{ padding: "8px 12px", borderBottom: "1px solid var(--rule)", fontSize: 12 }}>
+      <button className="link-btn" onClick={toggle}>
+        {st === "on" ? "🔕 إيقاف إشعارات الهاتف" : st === "denied" ? "الإشعارات محظورة من إعدادات المتصفح" : "🔔 تفعيل إشعارات الهاتف"}
+      </button>
+      {err && <p className="field-error" style={{ margin: "4px 0 0" }}>{err}</p>}
+    </div>
+  );
+}
+
 function NotificationBell() {
   const [open, setOpen] = useState(false);
   const { data, loading, reload } = useFetch(() => api.notifications(), []);
@@ -425,6 +448,7 @@ function NotificationBell() {
             <span>الإشعارات</span>
             {unreadCount > 0 && <button className="link-btn" onClick={markAll}>تعليم الكل كمقروء</button>}
           </div>
+          <PushToggle />
           {loading ? <Spinner /> : !data?.notifications?.length ? (
             <p className="chat-empty">لا توجد إشعارات بعد</p>
           ) : (
