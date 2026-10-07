@@ -178,9 +178,9 @@ export function PasswordSteps({
       </button>
       <div className="otp-footer">
         <button className="link-btn" onClick={() => setStep("forgot")}>نسيت كلمة المرور؟</button>
-        <button className="link-btn" onClick={() => setStep("phone")}>أول مرة؟ ادخل برمز التحقق</button>
+        <button className="link-btn" onClick={() => setStep("code")}>أول مرة؟ عندي رمز من الإدارة</button>
       </div>
-      <button className="link-btn" onClick={() => setStep("code")}>عندي رمز دخول من الإدارة</button>
+      <button className="link-btn" onClick={() => setStep("phone")}>الدخول برمز SMS</button>
       {allowRecovery && <button className="link-btn" onClick={() => setStep("recover")}>عندي رمز استرجاع</button>}
       {onNewAccount && <button className="link-btn" onClick={onNewAccount}>مستخدم جديد؟ أنشئ حسابك من هنا</button>}
     </div>
