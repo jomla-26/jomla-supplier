@@ -205,7 +205,6 @@ export function SetPasswordView({ onSaved, onLogout }) {
         <div className="login-card"><RecoveryCodeBox code={recovery} onDone={() => onSaved()} doneLabel="تم، كمّل" /></div>
       ) : (
         <div className="login-card">
-          <p className="hint">من توا تدخل بالرقم وكلمة المرور، وما يحتاج رمز SMS.</p>
           <label className="field-label">كلمة المرور الجديدة</label>
           <PwInput value={pw} onChange={setPw} placeholder="6 أحرف على الأقل" autoComplete="new-password" />
           <label className="field-label">أعد كتابتها</label>
