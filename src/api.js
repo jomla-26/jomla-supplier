@@ -49,7 +49,7 @@ export const setUnauthorizedHandler = (fn) => { onUnauthorized = fn; };
 const BLOCKED_MSG_RE = /(تم إيقاف هذا الحساب|حسابك غير مفعّل|حسابك لم يُعتمد|هذا الحساب غير متاح)/;
 
 // مسارات الدخول العامة: 401/403 فيها معناها "بيانات غلط" مو "انتهت الجلسة"
-const PUBLIC_AUTH = /^\/auth\/(otp|password\/(login|login-code|recover|forgot))/;
+const PUBLIC_AUTH = /^\/auth\/(otp|password\/(login|login-code|recover|forgot)|passkey\/login)/;
 
 function showLogoutNotice(message) {
   try {
@@ -169,6 +169,16 @@ export const api = {
   },
   setPassword: (body) => request("/auth/password/set", { method: "POST", body }),
   newRecoveryCode: (currentPassword) => request("/auth/password/new-recovery-code", { method: "POST", body: { currentPassword } }),
+  passkeyRegisterOptions: () => request("/auth/passkey/register/options", { method: "POST", body: {} }),
+  passkeyRegisterVerify: (body) => request("/auth/passkey/register/verify", { method: "POST", body }),
+  passkeyLoginOptions: () => request("/auth/passkey/login/options", { method: "POST", body: {} }),
+  passkeyLoginVerify: async (body) => {
+    const data = await request("/auth/passkey/login/verify", { method: "POST", body });
+    session.save(data.token, data.actor);
+    return data;
+  },
+  passkeys: () => request("/auth/passkeys"),
+  deletePasskey: (id) => request(`/auth/passkeys/${id}/delete`, { method: "POST", body: {} }),
   sessions: () => request("/auth/sessions"),
   revokeSession: async (id) => { const r = await request(`/auth/sessions/${id}/revoke`, { method: "POST", body: {} }); if (r?.self) session.clear(); return r; },
   logoutAll: async () => { await request("/auth/password/logout-all", { method: "POST", body: {} }); session.clear(); },

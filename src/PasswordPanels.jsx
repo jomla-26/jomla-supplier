@@ -6,6 +6,50 @@ import { useAction } from "./hooks.js";
 const toEnDigits = (s) => String(s || "").replace(/[٠-٩]/g, (c) => "٠١٢٣٤٥٦٧٨٩".indexOf(c));
 const digits6 = (s) => toEnDigits(s).replace(/\D/g, "").slice(0, 6);
 
+
+// ---------- بصمة الوجه / البصمة (WebAuthn) — تعمل فقط على نطاقات jomla-ly.com ----------
+const passkeySupported = () =>
+  typeof window !== "undefined" && !!window.PublicKeyCredential && !!navigator.credentials &&
+  /(^|\.)jomla-ly\.com$|^localhost$/.test(window.location.hostname);
+const b64uToBuf = (s) => {
+  const t = String(s).replace(/-/g, "+").replace(/_/g, "/");
+  return Uint8Array.from(atob(t + "=".repeat((4 - (t.length % 4)) % 4)), (c) => c.charCodeAt(0)).buffer;
+};
+const bufToB64u = (b) => {
+  let str = ""; new Uint8Array(b).forEach((x) => { str += String.fromCharCode(x); });
+  return btoa(str).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+};
+const passkeyErr = (e) => {
+  if (e?.name === "NotAllowedError" || e?.name === "AbortError") return new Error("تم الإلغاء أو ما تم التحقق من الوجه، حاول مرة ثانية");
+  if (e?.name === "InvalidStateError") return new Error("بصمة الوجه مفعّلة من قبل على هذا الجهاز");
+  return e instanceof Error ? e : new Error("تعذّر استخدام بصمة الوجه على هذا الجهاز");
+};
+async function enablePasskey() {
+  try {
+    const o = await api.passkeyRegisterOptions();
+    const cred = await navigator.credentials.create({ publicKey: {
+      ...o, challenge: b64uToBuf(o.challenge), user: { ...o.user, id: b64uToBuf(o.user.id) },
+      excludeCredentials: (o.excludeCredentials || []).map((c) => ({ ...c, id: b64uToBuf(c.id) })),
+    } });
+    await api.passkeyRegisterVerify({ id: cred.id, response: {
+      clientDataJSON: bufToB64u(cred.response.clientDataJSON), attestationObject: bufToB64u(cred.response.attestationObject),
+    } });
+  } catch (e) { throw passkeyErr(e); }
+}
+async function loginWithPasskey() {
+  let cred;
+  try {
+    const o = await api.passkeyLoginOptions();
+    cred = await navigator.credentials.get({ publicKey: {
+      challenge: b64uToBuf(o.challenge), rpId: o.rpId, userVerification: "required", timeout: o.timeout,
+    } });
+    await api.passkeyLoginVerify({ id: cred.id, response: {
+      clientDataJSON: bufToB64u(cred.response.clientDataJSON), authenticatorData: bufToB64u(cred.response.authenticatorData),
+      signature: bufToB64u(cred.response.signature),
+    } });
+  } catch (e) { throw passkeyErr(e); }
+}
+
 const SEC_CSS = `
 .sec-box{border:1px solid rgba(128,128,128,.3);border-radius:14px;padding:14px;margin:12px 0;text-align:right}
 .sec-box h4{margin:0 0 10px;font-size:15px}
@@ -76,6 +120,7 @@ export function PasswordSteps({
   const checkPhone = () => { const e = phoneError(phone); setPhoneErr(e || ""); return !e; };
   const login = useAction(async () => { await onPasswordLogin(normalizePhone(phone), pw); });
   const codeLogin = useAction(async () => { await onCodeLogin(normalizePhone(phone), code); });
+  const face = useAction(async () => { await loginWithPasskey(); await onAdopt(); });
   const forgot = useAction(async () => {
     const r = await api.forgotPassword(accountType, normalizePhone(phone), reason.trim());
     setSent(r?.message || "تم إرسال طلبك للإدارة");
@@ -189,6 +234,14 @@ export function PasswordSteps({
         onClick={() => checkPhone() && login.run().catch(() => {})}>
         {login.pending ? "جارٍ الدخول…" : "دخول"}
       </button>
+      {passkeySupported() && (
+        <>
+          {face.error && <p className="field-error">{face.error}</p>}
+          <button className="btn-ghost pw-alt" disabled={face.pending} onClick={() => face.run().catch(() => {})}>
+            {face.pending ? "جارٍ التحقق…" : "🔐 الدخول ببصمة الوجه"}
+          </button>
+        </>
+      )}
       <div className="pw-links">
         <button className="link-btn" onClick={() => setStep("forgot")}>نسيت كلمة المرور؟</button>
         <div className="pw-sep"><span>أو</span></div>
@@ -236,6 +289,43 @@ export function SetPasswordView({ onSaved, onLogout }) {
 }
 
 /** تغيير كلمة المرور + الخروج من كل الأجهزة (+ رمز استرجاع جديد للمدير العام) */
+function PasskeyBox() {
+  const [list, setList] = useState(null);
+  const [msg, setMsg] = useState("");
+  const supported = passkeySupported();
+  const load = () => api.passkeys().then(setList).catch(() => setList([]));
+  useEffect(() => { load(); }, []);
+  const add = useAction(async () => { await enablePasskey(); setMsg("تم تفعيل بصمة الوجه على هذا الجهاز"); await load(); });
+  const del = useAction(async (id) => { await api.deletePasskey(id); await load(); });
+  return (
+    <div className="sec-box">
+      <h4>بصمة الوجه</h4>
+      {supported ? (
+        <>
+          <p className="hint">بعد التفعيل تدخل بوجهك أو بصمتك بدون كتابة كلمة المرور. تفعّلها مرة على كل جهاز.</p>
+          {add.error && <p className="field-error">{add.error}</p>}
+          {msg && <p className="sec-ok">{msg}</p>}
+          <button className="btn-primary" disabled={add.pending} onClick={() => { setMsg(""); add.run().catch(() => {}); }}>
+            {add.pending ? "جارٍ التفعيل…" : "تفعيل بصمة الوجه على هذا الجهاز"}
+          </button>
+        </>
+      ) : (
+        <p className="hint">بصمة الوجه تعمل فقط لما تفتح التطبيق من رابط جملة الرسمي (jomla-ly.com).</p>
+      )}
+      {(list || []).map((k) => (
+        <div key={k.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "8px 0", borderTop: "1px solid rgba(128,128,128,.2)" }}>
+          <div>
+            <div style={{ fontWeight: 600 }}>{k.device_label || "جهاز"}</div>
+            <div className="hint" style={{ margin: 0 }}>{k.rp_id} · {k.last_used_at ? "آخر استخدام: " + fmtWhen(k.last_used_at) : "تفعّلت " + fmtWhen(k.created_at)}</div>
+          </div>
+          <button className="btn-ghost" disabled={del.pending} onClick={() => del.run(k.id).catch(() => {})}>حذف</button>
+        </div>
+      ))}
+      {del.error && <p className="field-error">{del.error}</p>}
+    </div>
+  );
+}
+
 function fmtWhen(d) {
   try { return new Date(d).toLocaleString("ar-LY", { dateStyle: "medium", timeStyle: "short" }); } catch { return ""; }
 }
@@ -314,6 +404,8 @@ export function SecurityPanel({ showRecovery = false, onLoggedOut }) {
           )}
         </div>
       )}
+
+      <PasskeyBox />
 
       <DevicesBox onLoggedOut={onLoggedOut} />
 
