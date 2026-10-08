@@ -365,9 +365,13 @@ export function SecurityPanel({ showRecovery = false, onLoggedOut }) {
   const [done, setDone] = useState("");
   const [confirmAll, setConfirmAll] = useState(false);
   const [newCode, setNewCode] = useState("");
+  const [hasPw, setHasPw] = useState(true);
+  useEffect(() => { api.me().then((m) => setHasPw(m?.hasPassword !== false)).catch(() => {}); }, []);
   const change = useAction(async () => {
-    await api.setPassword({ currentPassword: cur, newPassword: pw });
-    setCur(""); setPw(""); setDone("تم تغيير كلمة المرور");
+    const r = await api.setPassword(hasPw ? { currentPassword: cur, newPassword: pw } : { newPassword: pw });
+    setCur(""); setPw(""); setDone(hasPw ? "تم تغيير كلمة المرور" : "تم حفظ كلمة المرور");
+    setHasPw(true);
+    if (r?.recoveryCode) setNewCode(r.recoveryCode);
   });
   const outAll = useAction(async () => { await api.logoutAll(); onLoggedOut?.(); });
   const rec = useAction(async () => { const r = await api.newRecoveryCode(cur); setNewCode(r.recoveryCode); setCur(""); });
@@ -375,19 +379,22 @@ export function SecurityPanel({ showRecovery = false, onLoggedOut }) {
     <div style={{ maxWidth: 460 }}>
       <style>{SEC_CSS}</style>
       <div className="sec-box">
-        <h4>تغيير كلمة المرور</h4>
+        <h4>{hasPw ? "تغيير كلمة المرور" : "تسجيل كلمة مرور لحسابك"}</h4>
         <div className="sec-row">
-          <PwInput value={cur} onChange={(v) => { setCur(v); setDone(""); }} placeholder="كلمة المرور الحالية" />
+          {hasPw && <PwInput value={cur} onChange={(v) => { setCur(v); setDone(""); }} placeholder="كلمة المرور الحالية" />}
           <PwInput value={pw} onChange={(v) => { setPw(v); setDone(""); }} placeholder="الجديدة (6 أحرف على الأقل)" autoComplete="new-password" />
           {change.error && <p className="field-error">{change.error}</p>}
           {done && <p className="sec-ok">{done}</p>}
-          <button className="btn-primary" disabled={change.pending || !cur || pw.length < 6}
+          <button className="btn-primary" disabled={change.pending || (hasPw && !cur) || pw.length < 6}
             onClick={() => change.run().catch(() => {})}>
             {change.pending ? "جارٍ الحفظ…" : "حفظ"}
           </button>
         </div>
       </div>
 
+      {!showRecovery && newCode && (
+        <div className="sec-box"><h4>رمز الاسترجاع</h4><RecoveryCodeBox code={newCode} onDone={() => setNewCode("")} /></div>
+      )}
       {showRecovery && (
         <div className="sec-box">
           <h4>رمز الاسترجاع</h4>
