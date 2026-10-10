@@ -12,6 +12,7 @@ import { MapContainer, TileLayer, Marker, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import LogoIntro from "./LogoIntro.jsx";
+import InstallPrompt from "./InstallPrompt.jsx";
 
 const markerIcon = L.icon({
   iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
@@ -105,7 +106,7 @@ export default function JomlaSupplierApp() {
 /* ------------------------- عناصر مشتركة ------------------------- */
 
 const Shell = ({ children }) => (
-  <div dir="rtl" lang="ar" className="jomla-root"><Style />{children}</div>
+  <div dir="rtl" lang="ar" className="jomla-root"><Style />{children}<InstallPrompt /></div>
 );
 const Centered = ({ children }) => <div className="center-state">{children}</div>;
 const Spinner = ({ label = "جارٍ التحميل…" }) => (

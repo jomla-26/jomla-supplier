@@ -2,9 +2,12 @@
   "name": "Jomla - المورد",
   "short_name": "جملة مورد",
   "start_url": "/",
+  "scope": "/",
+  "lang": "ar",
+  "dir": "rtl",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#16a34a",
+  "theme_color": "#181d2a",
   "icons": [
     {
       "src": "/icon-192.png",
