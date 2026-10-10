@@ -1679,7 +1679,7 @@ function VariantsManager({ product }) {
       {loading ? <Spinner /> : error ? <ErrorState message={error} onRetry={reload} /> : (
         !data?.length ? <p className="cell-muted">لا توجد أنواع بعد</p> : (
           <table className="data-table" style={{ marginTop: 0 }}>
-            <thead><tr><th>النوع</th><th>السعر</th><th>الكمية</th><th>الحالة</th><th></th></tr></thead>
+            <thead><tr><th>الصورة</th><th>النوع</th><th>السعر</th><th>الكمية</th><th>الحالة</th><th></th></tr></thead>
             <tbody>
               {data.map((v) => <VariantRow key={v.id} variant={v} onDone={reload} />)}
             </tbody>
@@ -1701,6 +1701,20 @@ function VariantsManager({ product }) {
 function VariantRow({ variant: v, onDone }) {
   const [price, setPrice] = useState(v.price);
   const [stockQty, setStockQty] = useState(v.stock_qty);
+  const imgRef = useRef(null);
+  const [imgBusy, setImgBusy] = useState(false);
+  const [imgErr, setImgErr] = useState("");
+  function pickImg(e) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setImgBusy(true); setImgErr("");
+    api.uploadImage(file)
+      .then((res) => api.updateProductVariant(v.id, { imageUrl: res.url }))
+      .then(() => onDone())
+      .catch((err) => setImgErr(err?.message || "تعذّر رفع الصورة"))
+      .finally(() => setImgBusy(false));
+  }
   const save = useAction(() => api.updateProductVariant(v.id, { price: Number(price), stockQty: Number(stockQty) }));
   const toggle = useAction(() => api.updateProductVariant(v.id, { isActive: !v.is_active }));
   const remove = useAction(() => api.deleteProductVariant(v.id));
@@ -1708,7 +1722,18 @@ function VariantRow({ variant: v, onDone }) {
 
   return (
     <tr>
-      <td className="cell-id">{v.label}</td>
+      <td>
+          <input ref={imgRef} type="file" accept="image/*" style={{ display: "none" }} onChange={pickImg} />
+          <button type="button" className="link-btn" disabled={imgBusy} onClick={() => imgRef.current?.click()} aria-label="تغيير صورة النوع"
+            style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            {v.image_url
+              ? <img src={v.image_url} alt="" style={{ width: 38, height: 38, objectFit: "cover", borderRadius: 8 }} />
+              : <span style={{ width: 38, height: 38, borderRadius: 8, background: "var(--paper)", display: "inline-block" }} />}
+            <span style={{ fontSize: 12 }}>{imgBusy ? "…" : v.image_url ? "تغيير" : "إضافة"}</span>
+          </button>
+          {imgErr && <span className="field-error">{imgErr}</span>}
+        </td>
+        <td className="cell-id">{v.label}</td>
       <td><input type="number" min="0" step="0.05" className="qty-input" style={{ width: 80 }}
         value={price} onChange={(e) => setPrice(e.target.value)} /></td>
       <td><input type="number" min="0" className="qty-input" style={{ width: 70 }}
