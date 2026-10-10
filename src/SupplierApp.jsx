@@ -2552,6 +2552,10 @@ function Style() {
       .topbar-actions{margin-inline-start:auto;display:flex;gap:2px}
       .icon-btn{background:none;border:none;color:rgba(255,255,255,.6);padding:8px;display:flex;cursor:pointer}
       .icon-btn-active{color:var(--orange)}
+      /* زر الرجوع داخل الصفحات الفاتحة: واضح بدل الأبيض الباهت */
+      .order-detail-head > .icon-btn{color:var(--ink);background:#fff;border:1px solid rgba(24,29,42,.12);
+        border-radius:12px;min-width:42px;height:42px;padding:0;align-items:center;justify-content:center;
+        box-shadow:0 1px 3px rgba(24,29,42,.08)}
       .brand-chip{display:flex;align-items:center;gap:8px;color:#fff;font-family:var(--font-display);
         font-weight:800;font-size:14px}
 
