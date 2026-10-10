@@ -1303,7 +1303,7 @@ function StockVouchersScreen({ sections, products, onClose, onChanged }) {
         <button className="icon-btn" onClick={onClose} aria-label="رجوع"><ArrowRight size={20} /></button>
         <span className="order-row-id">فواتير المخزون</span>
       </div>
-      <p className="eyebrow-plain">كل عمليات إضافة أو خصم المخزون — يدويًا أو عبر استيراد إكسل — مسجّلة هنا كفواتير.</p>
+      <p className="eyebrow-plain">كل عمليات إضافة أو خصم المخزون — يدويًا أو عبر تحديث الأصناف من إكسل — مسجّلة هنا كفواتير.</p>
 
       <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
         <button className="btn-primary" style={{ marginBottom: 0 }} onClick={() => setCreating("addition")}>
@@ -1313,7 +1313,7 @@ function StockVouchersScreen({ sections, products, onClose, onChanged }) {
           − فاتورة خصم
         </button>
         <button className="btn-ghost" style={{ marginBottom: 0 }} onClick={() => setShowImport(true)}>
-          <Upload size={16} style={{ verticalAlign: "-3px", marginLeft: 6 }} /> استيراد من إكسل
+          <Upload size={16} style={{ verticalAlign: "-3px", marginLeft: 6 }} /> تحديث الأصناف من إكسل
         </button>
       </div>
 
@@ -2395,7 +2395,7 @@ function ImportProductsView({ sections, onClose, onImported }) {
 
         {result.needsConfirmation.length === 0 ? (
           <>
-            <p className="hint">لا توجد أصناف جديدة تحتاج تأكيد — الاستيراد اكتمل.</p>
+            <p className="hint">لا توجد أصناف جديدة تحتاج تأكيد — التحديث اكتمل.</p>
             <button className="btn-primary" onClick={onImported}>تم</button>
           </>
         ) : (
@@ -2455,7 +2455,7 @@ function ImportProductsView({ sections, onClose, onImported }) {
           <p className="hint">تم العثور على {rows.length} صنف في «{fileName}»</p>
           <div className="note-block" style={{ marginTop: 8 }}>
             <span className="note-label">تذكير</span>
-            <p>رقم الصنف (أو كود النوع) إجباري لكل الصفوف — يُستخدم للمطابقة مع أصنافك الحالية. الكمية والسعر في الملف يصيرون هم الكمية والسعر الجديدين في المنظومة (مو يتضافوا على القديم). لو خليت خانة الكمية أو السعر فاضية يبقى القديم كما هو. أي قيمة سالبة أو غير رقمية توقف الاستيراد كله مع قائمة بالصفوف الغلط.</p>
+            <p>رقم الصنف (أو كود النوع) إجباري لكل الصفوف — يُستخدم للمطابقة مع أصنافك الحالية. الكمية والسعر في الملف يصيرون هم الكمية والسعر الجديدين في المنظومة (مو يتضافوا على القديم). لو خليت خانة الكمية أو السعر فاضية يبقى القديم كما هو. أي قيمة سالبة أو غير رقمية توقف التحديث كله مع قائمة بالصفوف الغلط.</p>
           </div>
           {noSkuRows.length > 0 && (
             <div className="note-block" style={{ marginTop: 8 }}>
@@ -2466,7 +2466,7 @@ function ImportProductsView({ sections, onClose, onImported }) {
           {submit.error && <p className="field-error" style={{ whiteSpace: "pre-line" }}>{submit.error}</p>}
           <button className="btn-primary" disabled={submit.pending || !withSkuRows.length}
             onClick={() => submit.run().then(handleFirstResult).catch(() => {})}>
-            {submit.pending ? "جارٍ المعالجة…" : `متابعة الاستيراد (${withSkuRows.length} صف)`}
+            {submit.pending ? "جارٍ المعالجة…" : `متابعة التحديث (${withSkuRows.length} صف)`}
           </button>
         </>
       )}
